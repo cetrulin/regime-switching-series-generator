@@ -1,0 +1,46 @@
+params:
+  max_models: 7
+  stop_criteria: 100000
+  switching_probability: 0.01
+  abrupt_drift_prob: 0.25
+  gradual_drift_sharpness: 1   # number from 1 to 10 (10 is an instant switch)
+  abrupt_drift_sharpness: 7
+  white_noise_level: 0.05 # weight of white noise in the generated TS as a percentage. 0 = no white noise. 100 only produces white noise
+
+plot: True  # plot TS?
+
+paths:
+  output_path: 'C:/Users/suare/OneDrive/Desktop'
+  ts_export_name: 'timeseries_created_1.csv'
+
+#model:
+#  # """
+#  # Parameters for models and simulations according to:
+#  #  - https://barnesanalytics.com/garch-models-in-python
+#  #  - https://arch.readthedocs.io/en/latest/univariate/introduction.html
+#  # """
+
+env:
+  r_libs_path: 'C:/Users/suare/OneDrive/Documents/asuare/R/win-library/3.6'
+
+datasets:  # model-related
+  path: 'C:\\Users\\suare\\MEGA\\PhD\\1 Code and data\\data\\'
+
+  files:  # series for the pre-training of the models (each model will be pre-trained with one)
+    - ['raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', 0.25]
+    - ['raw\\quantquote\\one_second_level\\242321_csv\\20170717/spy.csv', 0.25]
+    - ['raw\\quantquote\\one_second_level\\242321_csv\\20160914/spy.csv', 0.25]
+    - ['raw\\quantquote\\one_second_level\\242321_csv\\20170914/spy.csv', 0.25]
+    - ['raw\\quantquote\\one_second_level\\242321_csv\\20170314/spy.csv', 0.25]
+    - ['raw\\quantquote\\one_second_level\\242321_csv\\20160314/spy.csv', 0.25]
+    - ['raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', 0.25]
+
+  cols: ['Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Suspicious']
+
+  sim_col: 'Close'
+
+  index_col: 'Time'
+
+  # for models
+  pq_rng: 5
+  d_rng: 1   # [0] # we'll use arma-garch, so not d (= 0)
