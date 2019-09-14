@@ -44,3 +44,4 @@ datasets:  # model-related
   # for models
   pq_rng: 5
   d_rng: 1   # [0] # we'll use arma-garch, so not d (= 0)
+  parsing_mode: 'returns'  # or 'prices'

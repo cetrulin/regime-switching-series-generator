@@ -100,6 +100,60 @@ def parse_yaml():
     return data_config, global_params, model_params, paths, plot
 
 
+def load_all_series(config: dict(), plot: bool = True):
+    """
+    This function loads the intial series to feed them to models.
+    :param config: from YAML file
+    :param plot: plot series?
+    :return: dict of series
+    """
+    # Load raw time series for the pre-training of the models
+    series_dict = dict()
+    counter = 1
+    for file, prob in config['files']:
+        df = pd.read_csv(os.path.join(config['path'], file), header=None)
+        df.columns = config['cols']
+        df.set_index(keys=config['index_col'], drop=True, inplace=True)
+
+        # Clean nulls and select series
+        raw_series = df[[config['sim_col']]].dropna()
+        raw_returns_series = 100 * df[[config['sim_col']]].pct_change().dropna()
+
+        # Plot initial df and returns
+        if plot:
+            plot_input(df)
+            plot_input(raw_series)
+            plot_input(raw_returns_series)
+
+        # train the standardization
+        ts = prepare_raw_series(config['parsing_mode'], raw_returns_series)
+
+        # Add to dictionary
+        series_dict.update({f'model_{counter}_pre-training': [ts, prob]})
+        counter = counter + 1
+
+    return series_dict
+
+
+def prepare_raw_series(mode: str, raw_returns_series: pd.Series()):
+    """
+    This function computes returns from the price series at logarithmic scale.
+    Raw prices, if selected, are standarized using maxmin.
+    """
+    df = raw_returns_series.to_frame()
+    min_max_scaler = MinMaxScaler()
+    min_max_scaler = min_max_scaler.fit(df)
+    print(f'Min: {min_max_scaler.data_min_[0]}, Max: {min_max_scaler.data_max_[0]}')
+
+    if mode == 'returns':  # log returns
+        ts = pd.DataFrame(np.log(raw_returns_series /
+                                 raw_returns_series.shift(1))).reset_index(drop=True)
+    else:  # standardization the dataset
+        ts = pd.DataFrame(min_max_scaler.transform(df)).reset_index(drop=True)
+
+    return ts[ts.columns[0]].apply(lambda x: 0 if math.isnan(x) else x)  # the first value = NaN due to the returns
+
+
 def get_best_parameters(ts: list(), config: dict()):
     """
     This list returns the best ARMA model for the current pre-training period.
@@ -127,65 +181,67 @@ def get_best_parameters(ts: list(), config: dict()):
     return best_aic, best_order, best_mdl
 
 
-def prepare_raw_series(mode: str, raw_returns_series: pd.Series()):
+def fit(current_series, p_, q_):
     """
-    This function computes returns from the price series at logarithmic scale.
-    Raw prices, if selected, are standarized using maxmin.
+    This function uses rugarch to fit an ARMA-GARCH model for p, 0, q (d!=0 only in ARIMA-GARCH)
+    :param current_series:
+    :param p_: p lags of the best fitted ARMA model.
+    :param q_: q lags of the best fitted ARMA model.
+    :return: trained/fitted model
     """
-    df = raw_returns_series.to_frame()
-    min_max_scaler = MinMaxScaler()
-    min_max_scaler = min_max_scaler.fit(df)
-    print(f'Min: {min_max_scaler.data_min_[0]}, Max: {min_max_scaler.data_max_[0]}')
+    # Initialize R GARCH model
+    garch_spec = rugarch.ugarchspec(
+        mean_model=robjects.r(f'list(armaOrder=c({p_},{q_}), include.mean=T)'),
+        # Using student T distribution usually provides better fit
+        variance_model=robjects.r('list(garchOrder=c(1,1))'),
+        distribution_model='sged')  # 'std'
 
-    if mode == 'returns':  # log returns
-        ts = pd.DataFrame(np.log(raw_returns_series /
-                                 raw_returns_series.shift(1))).reset_index(drop=True)
-    else:  # standardization the dataset
-        ts = pd.DataFrame(min_max_scaler.transform(df)).reset_index(drop=True)
+    # Train R GARCH model on returns as %
+    numpy2ri.activate()  # Used to convert training set to R list for model input
+    model = rugarch.ugarchfit(
+        spec=garch_spec,
+        data=np.array(current_series),
+        out_sample=0  # TODO: test this. does it work? otherwise set 1 as default.
+    )
+    numpy2ri.deactivate()
+    return model
 
-    return ts[ts.columns[0]].apply(lambda x: 0 if math.isnan(x) else x)  # the first value = NaN due to the returns
 
-
-def load_all_series(config: dict(), plot: bool = True):
+def pre_train_models(dict_of_series: dict(), config: dict(), plot: bool = False):
     """
-    This function loads the intial series to feed them to models.
-    :param config: from YAML file
-    :param plot: plot series?
-    :return: dict of series
+    This function triggers the selection of the best parameters and fitting of n models
+     (one model per dataset added to the YAML config file).
+    :param dict_of_series - datasets as a single column DF to fit the models
+    :param config - dictionary from YAML with datasets-related configuration
+    :param plot - plot model?
+    :return list of fitted models
     """
-    # Load raw time series for the pre-training of the models
-    series_dict = dict()
+    models = dict()
     i = 1
+    for current_series, prob in dict_of_series:
+        res_tup = get_best_parameters(ts=list(current_series), config=config)
+        order = res_tup[1]
+        model = res_tup[2]
+        print('Best parameters are: ')
+        print(order)
 
-    for file, prob in config['files']:
-        df = pd.read_csv(os.path.join(config['path'], file), header=None)
-        df.columns = config['cols']
-        df.set_index(keys=config['index_col'], drop=True, inplace=True)
-
-        # Clean nulls and select series
-        raw_series = df[[config['sim_col']]].dropna()
-        raw_returns_series = 100 * df[[config['sim_col']]].pct_change().dropna()
-
-        # Plot initial df and returns
         if plot:
-            plot_input(df)
-            plot_input(raw_series)
-            plot_input(raw_returns_series)
+            tsplot(model.resid, lags=30)
+            tsplot(model.resid ** 2, lags=30)
 
-        # train the standardization
-        mode = 'returns'
-        ts = prepare_raw_series(mode, raw_returns_series)
+        # Now we can fit the arch model using the best fit ARIMA model parameters
+        p_, q_ = order[0], order[2]
+        # o_ = order[1] (not used in ARMA-GARCH) # see notebook
 
-        # Add to dictionary
-        series_dict.update({f'model_{i}_pre-training': [ts, prob]})
+        model = fit(current_series, p_, q_)
+        models.update({f'model_{i}': [model, prob]})  # TODO: test. are the params what we really want?
         i = i + 1
+    return models
 
-    return series_dict
 
-
-def armagarch_forecast(model, ts):
+def get_forecast(model, ts):
     """
-    This function calls the R rugarch library to produce a forecast.
+    This function calls the R rugarch library to produce a the ARMA-GARCH forecast.
     :param model - current selected model
     :param ts - current series
     :return forecast or the next time horizon
@@ -270,73 +326,6 @@ def get_new_model(current_id: int, config: dict()):
     return get_new_model(current_id, config) if current_id == new_model_id else new_model_id
 
 
-def pre_train_models(dict_of_series: dict(), config: dict(), plot: bool = False):
-    """
-    This function fits one model per dataset added to the YAML config file
-    :param dict_of_series - datasets as a single column DF to fit the models
-    :param config - dictionary from YAML with datasets-related configuration
-    :param plot - plot model?
-    :return list of fitted models
-    """
-    models = dict()
-    i = 1
-    for current_series, prob in dict_of_series:
-        res_tup = get_best_parameters(ts=list(current_series), config=config)
-        order = res_tup[1]
-        model = res_tup[2]
-        print('Best parameters are: ')
-        print(order)
-
-        if plot:
-            tsplot(model.resid, lags=30)
-            tsplot(model.resid ** 2, lags=30)
-
-        # Now we can fit the arch model using the best fit arima model parameters
-        p_, q_ = order[0], order[2]
-        # o_ = order[1] (not used in ARMA-GARCH) # see notebook
-
-        # Initialize R GARCH model
-        garch_spec = rugarch.ugarchspec(
-            mean_model=robjects.r(f'list(armaOrder=c({p_},{q_}), include.mean=T)'),
-            # Using student T distribution usually provides better fit
-            variance_model=robjects.r('list(garchOrder=c(1,1))'),
-            distribution_model='sged')  # 'std'
-
-        # Train R GARCH model on returns as %
-        numpy2ri.activate()  # Used to convert training set to R list for model input
-        trained_model = rugarch.ugarchfit(
-            spec=garch_spec,
-            data=np.array(current_series),
-            out_sample=0  # TODO: test this. does it work? otherwise set 1 as default.
-        )
-        numpy2ri.deactivate()
-        models.update({f'model_{i}': [trained_model, prob]})  # TODO: test. are the params what we really want?
-        i = i + 1
-    return models
-
-
-def add_noise(noise_level: float, ts: pd.Series()):
-    """
-    This function adds noise to the time series passed as a parameter.
-    :param noise_level: percentage representing level of noise to be added
-    :param ts: time series generated
-    :return time series with added noise
-    """
-    t = np.linspace(-20, 20, 500)
-    snr = 10 * np.log(1 + noise_level)  # SNR = 0.487 for noise_level = 0.05
-
-    # Random N - length vector of Gaussian numbers
-    r = np.randn(1, len(t))
-
-    # 6.1 Add noise using (noise_level)% Gaussian Noise Method
-    ts_n1 = ts + noise_level * r * ts  # Noisy signal
-
-    # 6.2 Add noise using (10 * np.log(1 + noise_level)) SNR and White Gaussian Noise
-    ts_n2 = ts + np.sqrt((10 ^ (-snr / 10))) * r  # Noisy signal
-
-    return ts_n1, ts_n2
-
-
 def switching_process(tool_parameters: dict(), models: dict(), init_series: list(), data_config: dict(), plot: bool):
     """
     This function computes transitions between time series and returns the resulting time series.
@@ -368,9 +357,9 @@ def switching_process(tool_parameters: dict(), models: dict(), init_series: list
         # 1 Start forecasting in 1 step horizons using the current model
         if counter < current_model.LAGS:    # TODO: get lags properly
             idx = f'model_{current_id}_pre-training'
-            old_model_forecast = armagarch_forecast(current_model, init_series[idx])
+            old_model_forecast = get_forecast(current_model, init_series[idx])
         else:
-            old_model_forecast = armagarch_forecast(current_model, ts)
+            old_model_forecast = get_forecast(current_model, ts)
         start_switch_type = starts_switch(tool_parameters['switching_probability'],
                                           tool_parameters['abrupt_drift_prob'])
 
@@ -386,7 +375,7 @@ def switching_process(tool_parameters: dict(), models: dict(), init_series: list
         # 4 if it's switching (started now or in other iteration), then forecast with new model and get weighted average
         if 0 < w[1] < 1:
             # Forecast and expand current series (current model is the old one, this becomes current when weight == 1)
-            new_model_forecast = armagarch_forecast(new_model, ts)
+            new_model_forecast = get_forecast(new_model, ts)
             ts.append(new_model_forecast * w[1] + old_model_forecast * w[0])
             # TODO: TEST reconstruction once the rest works
             # rec_ts.append(reconstruct(new_model_forecast, rec_value) * w[1] +
@@ -411,6 +400,28 @@ def switching_process(tool_parameters: dict(), models: dict(), init_series: list
     return ts,  pd.DataFrame(rc)  # TODO return rec_ts, pd.DataFrame(rc)
 
 
+def add_noise(noise_level: float, ts: pd.Series()):
+    """
+    This function adds noise to the time series passed as a parameter.
+    :param noise_level: percentage representing level of noise to be added
+    :param ts: time series generated
+    :return time series with added noise
+    """
+    t = np.linspace(-20, 20, 500)
+    snr = 10 * np.log(1 + noise_level)  # SNR = 0.487 for noise_level = 0.05
+
+    # Random N - length vector of Gaussian numbers
+    r = np.randn(1, len(t))
+
+    # 6.1 Add noise using (noise_level)% Gaussian Noise Method
+    ts_n1 = ts + noise_level * r * ts  # Noisy signal
+
+    # 6.2 Add noise using (10 * np.log(1 + noise_level)) SNR and White Gaussian Noise
+    ts_n2 = ts + np.sqrt((10 ^ (-snr / 10))) * r  # Noisy signal
+
+    return ts_n1, ts_n2
+
+
 def compute():
     """
     This function coordinates the whole process.
@@ -422,7 +433,7 @@ def compute():
     # 0 Read  from YAML file
     data_config, global_params, model_params, paths, plot = parse_yaml()
 
-    # 1 Get dict of series (in a single column DF) and their probabilities. These are loaded from the yaml file.
+    # 1 Get dict of series and their probabilities. These are loaded from the yaml file.
     series_dict = load_all_series(config=data_config, plot=plot)  # these series is the series of returns on log scale
 
     # 2 Then, pre-train GARCH models by looking at different series
