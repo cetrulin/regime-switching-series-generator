@@ -136,15 +136,14 @@ def prepare_raw_series(mode: str, raw_returns_series: pd.Series()):
     min_max_scaler = MinMaxScaler()
     min_max_scaler = min_max_scaler.fit(df)
     print(f'Min: {min_max_scaler.data_min_[0]}, Max: {min_max_scaler.data_max_[0]}')
-    if mode == 'returns':
+
+    if mode == 'returns':  # log returns
         ts = pd.DataFrame(np.log(raw_returns_series /
                                  raw_returns_series.shift(1))).reset_index(drop=True)
-        ts = ts[ts.columns[0]].apply(lambda x: 0 if math.isnan(x) else x)  # the first value = NaN due to the returns
-    else:
-        # standardization the dataset
-        data_normalized = min_max_scaler.transform(df)
-        ts = pd.DataFrame(data_normalized).dropna().reset_index(drop=True)
-    return ts
+    else:  # standardization the dataset
+        ts = pd.DataFrame(min_max_scaler.transform(df)).reset_index(drop=True)
+
+    return ts[ts.columns[0]].apply(lambda x: 0 if math.isnan(x) else x)  # the first value = NaN due to the returns
 
 
 def load_all_series(config: dict(), plot: bool = True):
