@@ -11,6 +11,9 @@ import statsmodels.tsa.api as smt
 import statsmodels.api as sm
 import scipy.stats as scs
 from dataclasses import dataclass
+import logging
+import multiprocessing
+from functools import partial
 
 # RPY packages to run rugarch in python
 from rpy2.robjects.packages import importr
@@ -20,8 +23,14 @@ from rpy2.robjects import numpy2ri
 # Set values to R libs
 base = importr('base')
 rugarch = None
+with open("config.yaml", 'r') as stream:
+    rugarch = importr("rugarch", lib_loc=yaml.safe_load(stream)['env']['r_libs_path'])
 TIME_HORIZON = 1  # this is fixed. other values would require minor development
 MODEL_DICT_NAMES = 'fitted_'
+
+# Logger
+logging.basicConfig()
+logging.getLogger().setLevel(logging.INFO)
 # TODO: use logger instead of prints.
 
 
@@ -103,8 +112,6 @@ def plot_results(simulations: pd.Series()):
 
 def parse_yaml():
     """ This function parses the config file and returns options, paths, etc."""
-    global rugarch
-
     # Read YAML file
     with open("config.yaml", 'r') as stream:
         config = yaml.safe_load(stream)
@@ -113,9 +120,38 @@ def parse_yaml():
         model_params = config['datasets']['files']
         paths = config['paths']
         plot = config['plot']
-        rugarch = importr("rugarch", lib_loc=config['env']['r_libs_path'])
         print(config)
     return data_config, global_params, model_params, paths, plot
+
+
+def single_thread(config, plot, file_config):
+    """
+    This handles each thread in 'load_all_series'
+    :param config: from YAML file
+    :param plot: plot series?
+    :param file_config: list of ids, files and probabilities.
+    :return: model and desc tuple
+    """
+    counter, file, prob = file_config
+    print(f'counter: {counter}')
+    df = pd.read_csv(os.path.join(config['path'], file), header=None)
+    df.columns = config['cols']
+    df.set_index(keys=config['index_col'], drop=True, inplace=True)
+
+    # Clean nulls and select series
+    raw_series = df[[config['sim_col']]]  # .dropna()
+    raw_returns_series = 100 * df[[config['sim_col']]].pct_change()  # .dropna()
+
+    # the returns later are calculated in a different way and they use log scale
+    if plot:  # Plot initial df and returns
+        plot_input(df, 'Raw dataset')
+        plot_input(raw_series, 'Prices')
+        plot_input(raw_returns_series, 'Returns')
+
+    # Prepare Model and return it to be added to a dictionary
+    return Model(id=counter, raw_input_path=os.path.join(config['path'], file),
+                 input_ts=prepare_raw_series(config['parsing_mode'], raw_series), probability=prob), \
+        f'{MODEL_DICT_NAMES}{counter}'
 
 
 def load_all_series(config: dict(), plot: bool = True):
@@ -126,29 +162,10 @@ def load_all_series(config: dict(), plot: bool = True):
     :return: dict of series
     """
     # Load raw time series for the pre-training of the models
-    series_dict = dict()
-    counter = 1
-    for file, prob in config['files']:  # TODO parallelize this with multiprocessing
-        df = pd.read_csv(os.path.join(config['path'], file), header=None)
-        df.columns = config['cols']
-        df.set_index(keys=config['index_col'], drop=True, inplace=True)
-
-        # Clean nulls and select series
-        raw_series = df[[config['sim_col']]]  # .dropna()
-        raw_returns_series = 100 * df[[config['sim_col']]].pct_change()  # .dropna()
-        # the returns later are calculated in a different way and they use log scale
-        if plot:  # Plot initial df and returns
-            plot_input(df, 'Raw dataset')
-            plot_input(raw_series, 'Prices')
-            plot_input(raw_returns_series, 'Returns')
-
-        # Prepare Model and add it to dictionary
-        series_dict.update({f'{MODEL_DICT_NAMES}{counter}':
-                            Model(id=counter,
-                                  raw_input_path=os.path.join(config['path'], file),
-                                  input_ts=prepare_raw_series(config['parsing_mode'], raw_series),
-                                  probability=prob)})
-        counter = counter + 1
+    logging.info('Load models...')
+    pool = multiprocessing.Pool(processes=len(config['files']))
+    mapped = pool.map(partial(single_thread, config, plot), config['files'])
+    series_dict = dict(map(reversed, tuple(mapped)))
     return series_dict
 
 
@@ -233,29 +250,38 @@ def pre_train_models(dict_of_series: dict(), config: dict(), plot: bool = False)
     :param plot - plot model?
     :return list of fitted models
     """
-    models = dict()
-    counter = 1
-    for name_series, current_model in dict_of_series.items():
-        print(f'\n\nStart fitting process for {name_series}')
-        # TODO: objects of class Model should be updated here
-        # TODO IMP: uncomment line below after testing.
-        # ARMA_order, ARMA_model = get_best_parameters(ts=list(current_model.input_ts), config=config)
-        # TODO: maybe this should get the best ARMAGARCH instead.
-        ARMA_order = (4, 0, 1)
-        ARMA_model = None
-        print('Best parameters are: ')
-        current_model.p, current_model.o, current_model.q = ARMA_order[0], ARMA_order[1], ARMA_order[2]
-        print(f'{current_model.p}, {current_model.o}, {current_model.q}')
+    # Fit models in parallel
+    logging.info('Fitting models...')
+    pool = multiprocessing.Pool(processes=len(config['files']))
+    mapped = pool.map(partial(pretraining_single_thread, plot, config), dict_of_series.items())
+    return dict(map(reversed, tuple(mapped)))
 
-        if plot:
-            tsplot(ARMA_order.resid, lags=30)
-            tsplot(ARMA_order.resid ** 2, lags=30)
 
-        # Now we can fit the arch model using the best fit ARIMA model parameters
-        current_model.ARMAGARCH = fit(current_model.input_ts, current_model.p, current_model.q)  # 'o' not in ARMAGARCH
-        models.update({f'{MODEL_DICT_NAMES}{counter}': current_model})
-        counter = counter + 1
-    return models
+def pretraining_single_thread(plot, config, series_model):
+    """
+    This handles each thread in 'load_all_series'
+    :param plot: plot series?
+    :param model: list of series as an object of Model.
+    :return: fitted model and description to be added to dictionary
+    """
+    name_series, current_model = series_model
+    logging.INFO(f'\n\nStart fitting process for {name_series}')
+    ARMA_order, ARMA_model = get_best_parameters(ts=list(current_model.input_ts), config=config)
+    # TODO: maybe this should get the best ARMAGARCH instead.
+    # ARMA_order, ARMA_model = (4, 0, 1), None
+    print(current_model.id)
+    print('Best parameters are: ')
+    current_model.p, current_model.o, current_model.q = ARMA_order[0], ARMA_order[1], ARMA_order[2]
+    print(f'{current_model.p}, {current_model.o}, {current_model.q}')
+
+    if plot:
+        tsplot(ARMA_order.resid, lags=30)
+        tsplot(ARMA_order.resid ** 2, lags=30)
+
+    # Now we can fit the arch model using the best fit ARIMA model parameters
+    current_model.ARMAGARCH = fit(current_model.input_ts, current_model.p, current_model.q)  # 'o' not in ARMAGARCH
+    return current_model, name_series  # f'{MODEL_DICT_NAMES}{counter}'
+
 
 
 def get_forecast(model, ts):
@@ -265,6 +291,7 @@ def get_forecast(model, ts):
     :param ts - current series
     :return forecast or the next time horizon
     """
+    # print(ts)  # TODO: see why this is always the same
     garch_forecast = rugarch.ugarchforecast(model, data=ts, n_ahead=1, n_roll=1)
     return np.array(garch_forecast.slots['forecast'].rx2('seriesFor')).flatten()[0]
 
@@ -372,7 +399,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     counter = 0
     w = reset_weights()  # tuple (current, new) of model weights.
     # rec_value = TODO
-    print('Start of the context-switching generative process:')
+    logging.INFO('Start of the context-switching generative process:')
     for counter in range(tool_params['periods']):
         # 1 Start forecasting in 1 step horizons using the current model
         old_model_forecast = get_forecast(current_model.ARMAGARCH, list(current_model.input_ts)
@@ -381,9 +408,10 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
 
         # 2 In case of switch, select a new model and reset weights: (1.0, 0.0) at the start (no changes) by default.
         if new_switch_type.value >= 0:
-            print(f'There is a {new_switch_type.name} switch.')
+            logging.INFO(f'There is a {new_switch_type.name} switch.')
             new_model = models[f'{MODEL_DICT_NAMES}{get_new_model(current_model.id, data_config["files"])}']
             w = update_weights(w=reset_weights(), switch_sharpness=switch_shp[switch_type.value])
+            # TODO: see why w does not change. does it reset or the issue is when updating?
 
         # 3 Log switches and events
         rc.append({'n_row': counter, 'new_switch': new_switch_type.name, 'weights': w,
@@ -410,7 +438,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
             # ts.append(reconstruct(old_model_forecast, rec_value)) # TODO
             ts.append(old_model_forecast)
 
-        print(f'Period {counter}: {ts[-1]}')
+        logging.INFO(f'Period {counter}: {ts[-1]}')
 
     # 4 Plot simulations
     if plot:
