@@ -7,7 +7,7 @@ params:
   abrupt_drift_sharpness: 7
   white_noise_level: 0.05 # weight of white noise in the generated TS as a percentage. 0 = no white noise. 100 only produces white noise
 
-plot: True  # plot TS?
+plot: False  # plot TS?
 
 paths:
   output_path: 'C:/Users/suare/OneDrive/Desktop'
@@ -21,7 +21,7 @@ paths:
 #  # """
 
 env:
-  r_libs_path: 'C:/Users/suare/OneDrive/Documents/asuare/R/win-library/3.6'
+  r_libs_path: 'C:/Users/suare/OneDrive/Documents/asuare/R/win-library/3.6' # rugarch should be installed there
 
 datasets:  # model-related
   path: 'C:\\Users\\suare\\MEGA\\PhD\\1 Code and data\\data\\'
@@ -30,10 +30,10 @@ datasets:  # model-related
     - ['raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', 0.25]
     - ['raw\\quantquote\\one_second_level\\242321_csv\\20170717/spy.csv', 0.25]
     - ['raw\\quantquote\\one_second_level\\242321_csv\\20160914/spy.csv', 0.25]
-    - ['raw\\quantquote\\one_second_level\\242321_csv\\20170914/spy.csv', 0.25]
-    - ['raw\\quantquote\\one_second_level\\242321_csv\\20170314/spy.csv', 0.25]
-    - ['raw\\quantquote\\one_second_level\\242321_csv\\20160314/spy.csv', 0.25]
-    - ['raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', 0.25]
+#    - ['raw\\quantquote\\one_second_level\\242321_csv\\20170914/spy.csv', 0.25]
+#    - ['raw\\quantquote\\one_second_level\\242321_csv\\20170314/spy.csv', 0.25]
+#    - ['raw\\quantquote\\one_second_level\\242321_csv\\20160314/spy.csv', 0.25]
+#    - ['raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', 0.25]
 
   cols: ['Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Suspicious']
 

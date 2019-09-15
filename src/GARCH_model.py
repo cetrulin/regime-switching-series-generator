@@ -10,6 +10,7 @@ from sklearn.preprocessing import MinMaxScaler
 import statsmodels.tsa.api as smt
 import statsmodels.api as sm
 import scipy.stats as scs
+from dataclasses import dataclass
 
 # RPY packages to run rugarch in python
 from rpy2.robjects.packages import importr
@@ -20,13 +21,29 @@ from rpy2.robjects import numpy2ri
 base = importr('base')
 rugarch = None
 TIME_HORIZON = 1  # this is fixed. other values would require minor development
+MODEL_DICT_NAMES = 'model_fitted_'
+# TODO: use logger instead of prints.
 
 
 class Switch(Enum):
     NONE = -1
     GRADUAL = 0
     ABRUPT = 1
-# TODO: create class model, that contains all model and dataset related info.
+
+
+@dataclass
+class Model:
+    # Model attributes and data
+    id: int
+    raw_input_path: float
+    input_ts: pd.Series()
+    probability: float
+
+    # Define fitted params
+    p = 0
+    o = 0
+    q = 0
+    ARMAGARCH = None
 
 
 def tsplot(y: pd.Series(), lags: list() = None, figsize: tuple = (15, 10), style: str = 'bmh'):
@@ -60,9 +77,9 @@ def tsplot(y: pd.Series(), lags: list() = None, figsize: tuple = (15, 10), style
         plt.tight_layout()
 
 
-def plot_input(df: pd.DataFrame()):
+def plot_input(df: pd.DataFrame(), title: str):
     """ This plots the DF passed """
-    df.plot(title='Prices')
+    df.plot(title=title)
     plt.show()
 
 
@@ -111,45 +128,49 @@ def load_all_series(config: dict(), plot: bool = True):
     series_dict = dict()
     counter = 1
     for file, prob in config['files']:
+        # TODO: objects of class Model should be created here
         df = pd.read_csv(os.path.join(config['path'], file), header=None)
         df.columns = config['cols']
         df.set_index(keys=config['index_col'], drop=True, inplace=True)
 
         # Clean nulls and select series
-        raw_series = df[[config['sim_col']]].dropna()
-        raw_returns_series = 100 * df[[config['sim_col']]].pct_change().dropna()
+        raw_series = df[[config['sim_col']]] # .dropna()
+        raw_returns_series = 100 * df[[config['sim_col']]].pct_change()  # .dropna()
+        # the returns later are calculated in a different way and they use log scale
 
         # Plot initial df and returns
         if plot:
-            plot_input(df)
-            plot_input(raw_series)
-            plot_input(raw_returns_series)
+            plot_input(df, 'Raw dataset')
+            plot_input(raw_series, 'Prices')
+            plot_input(raw_returns_series, 'Returns')
 
         # train the standardization
-        ts = prepare_raw_series(config['parsing_mode'], raw_returns_series)
+        ts = prepare_raw_series(config['parsing_mode'], raw_series)
+
+        ts_model = Model(id=counter, raw_input_path=os.path.join(config['path'], file),
+                         input_ts=ts, probability=prob)
+
 
         # Add to dictionary
-        series_dict.update({f'model_{counter}_pre-training': [ts, prob]})
+        series_dict.update({f'{MODEL_DICT_NAMES}{counter}': ts_model})
         counter = counter + 1
 
     return series_dict
 
 
-def prepare_raw_series(mode: str, raw_returns_series: pd.Series()):
+def prepare_raw_series(mode: str, ts: pd.DataFrame()):
     """
     This function computes returns from the price series at logarithmic scale.
     Raw prices, if selected, are standarized using maxmin.
     """
-    df = raw_returns_series.to_frame()
     min_max_scaler = MinMaxScaler()
-    min_max_scaler = min_max_scaler.fit(df)
+    min_max_scaler = min_max_scaler.fit(ts)
     print(f'Min: {min_max_scaler.data_min_[0]}, Max: {min_max_scaler.data_max_[0]}')
 
     if mode == 'returns':  # log returns
-        ts = pd.DataFrame(np.log(raw_returns_series /
-                                 raw_returns_series.shift(1))).reset_index(drop=True)
+        ts = pd.DataFrame(np.log(ts / ts.shift(1))).reset_index(drop=True)
     else:  # standardization the dataset
-        ts = pd.DataFrame(min_max_scaler.transform(df)).reset_index(drop=True)
+        ts = pd.DataFrame(min_max_scaler.transform(ts)).reset_index(drop=True)
 
     return ts[ts.columns[0]].apply(lambda x: 0 if math.isnan(x) else x)  # the first value = NaN due to the returns
 
@@ -163,9 +184,9 @@ def get_best_parameters(ts: list(), config: dict()):
     best_order = None
     best_mdl = None
 
-    for i in config['pq_rng']:   # [0,1,2,3,4]
-        for d in config['d_rng']:  # [0] # we'll use arma-garch, so not d (= 0)
-            for j in config['pq_rng']:
+    for i in range(config['pq_rng']):   # [0,1,2,3,4]
+        for d in range(config['d_rng']):  # [0] # we'll use arma-garch, so not d (= 0)
+            for j in range(config['pq_rng']):
                 try:
                     tmp_mdl = smt.ARIMA(ts, order=(i, d, j)).fit(
                         method='mle', trend='nc'
@@ -203,7 +224,10 @@ def fit(current_series, p_, q_):
         data=np.array(current_series),
         out_sample=0  # TODO: test this. does it work? otherwise set 1 as default.
     )
+    print(type(model))
+    print('\n\n\n\n\nSee the type above.')
     numpy2ri.deactivate()
+    #TODO IMP: print Beta and Gamma to check that their sum <= 1
     return model
 
 
@@ -217,25 +241,26 @@ def pre_train_models(dict_of_series: dict(), config: dict(), plot: bool = False)
     :return list of fitted models
     """
     models = dict()
-    i = 1
-    for current_series, prob in dict_of_series:
-        res_tup = get_best_parameters(ts=list(current_series), config=config)
-        order = res_tup[1]
-        model = res_tup[2]
+    counter = 1
+    for name_series, current_model in dict_of_series.items():
+        print(f'\n\nStart fitting process for {name_series}')
+        # TODO: objects of class Model should be updated here
+        # TODO IMP: uncomment line below after testing.
+        # ARMA_order, ARMA_model = get_best_parameters(ts=list(current_model.input_ts), config=config)
+        ARMA_order = (4, 0, 1)
+        ARMA_model = None
         print('Best parameters are: ')
-        print(order)
+        current_model.p, current_model.o, current_model.q = ARMA_order[0], ARMA_order[1], ARMA_order[2]
+        print(f'{current_model.p}, {current_model.o}, {current_model.q}')
 
         if plot:
-            tsplot(model.resid, lags=30)
-            tsplot(model.resid ** 2, lags=30)
+            tsplot(ARMA_order.resid, lags=30)
+            tsplot(ARMA_order.resid ** 2, lags=30)
 
         # Now we can fit the arch model using the best fit ARIMA model parameters
-        p_, q_ = order[0], order[2]
-        # o_ = order[1] (not used in ARMA-GARCH) # see notebook
-
-        model = fit(current_series, p_, q_)
-        models.update({f'model_{i}': [model, prob]})  # TODO: test. are the params what we really want?
-        i = i + 1
+        current_model.ARMAGARCH = fit(current_model.input_ts, current_model.p, current_model.q)  # 'o' not in ARMAGARCH
+        models.update({f'{MODEL_DICT_NAMES}{counter}': current_model})
+        counter = counter + 1
     return models
 
 
@@ -322,14 +347,14 @@ def get_new_model(current_id: int, config: dict()):
     # Just here in the case of having different probabilities of transitioning per series.
     # for i in range(len(config)):
     #     config[i][1]  # TOD: ENUMERATOR SO TRANSITION_PROBABILITIES_POS == 1
-    new_model_id = random.randrange(0, len(config))
+    new_model_id = random.randrange(1, len(config)+1)
     return get_new_model(current_id, config) if current_id == new_model_id else new_model_id
 
 
-def switching_process(tool_parameters: dict(), models: dict(), init_series: list(), data_config: dict(), plot: bool):
+def switching_process(tool_params: dict(), models: dict(), data_config: dict(), plot: bool):
     """
     This function computes transitions between time series and returns the resulting time series.
-    :param tool_parameters: info regarding to stitches from yaml file
+    :param tool_params: info regarding to stitches from yaml file
     :param models: fitted models
     :param init_series - initial series to feed for forecasts when the generated series does not have enough length
     :param data_config: datasets info from yaml file
@@ -338,12 +363,12 @@ def switching_process(tool_parameters: dict(), models: dict(), init_series: list
     :rerurn: rc - dataframe of events (switches flagged, models used and weights)
     """
     # Init params
-    switch_shp = (tool_parameters['gradual_drift_sharpness'], tool_parameters['abrupt_drift_sharpness'])
+    switch_shp = (tool_params['gradual_drift_sharpness'], tool_params['abrupt_drift_sharpness'])
     switch_type = Switch.NONE
 
     # Start with model A as initial model
-    current_id = 0
-    current_model = models[current_id]  # first model -> current_model = A (randomly chosen)
+    # current_id = 1
+    current_model = models[f'{MODEL_DICT_NAMES}{1}']  # first model -> current_model = A (randomly chosen)
     new_model = None
 
     # Initialize main series
@@ -353,24 +378,22 @@ def switching_process(tool_parameters: dict(), models: dict(), init_series: list
     counter = 0
     w = reset_weights()  # tuple (current, new) of model weights.
     # rec_value = TODO
-    while counter < tool_parameters['stop_criteria']:
+    print('Start of the context-switching generative process:')
+    while counter < tool_params['stop_criteria']:
         # 1 Start forecasting in 1 step horizons using the current model
-        if counter < current_model.LAGS:    # TODO: get lags properly
-            idx = f'model_{current_id}_pre-training'
-            old_model_forecast = get_forecast(current_model, init_series[idx])
-        else:
-            old_model_forecast = get_forecast(current_model, ts)
-        start_switch_type = starts_switch(tool_parameters['switching_probability'],
-                                          tool_parameters['abrupt_drift_prob'])
+        old_model_forecast = get_forecast(current_model.ARMAGARCH, current_model.input_ts
+                                          if counter < current_model.p or counter < current_model.q else ts)  # not 'o'
+        start_switch_type = starts_switch(tool_params['switching_probability'], tool_params['abrupt_drift_prob'])
 
         # 2 In case of switch, select a new model and reset weights: (1.0, 0.0) at the start (no changes) by default.
         if start_switch_type >= 0:
-            new_model, new_id = models[get_new_model(current_id, data_config['files'])]
+            new_model = models[get_new_model(current_model.id, data_config['files'])]
             w = update_weights(w=reset_weights(), switch_sharpness=switch_shp[switch_type])
 
         # 3 Log switches and events
         rc.append({'row': counter, 'new_switch': start_switch_type, 'weights': w,
-                   'current_model_id': current_id, 'new_model_id': new_id})
+                   'current_model_id': current_model.id,   # Add p,o,q to this?
+                   'new_model_id': None if new_model is not None else new_model.id})
 
         # 4 if it's switching (started now or in other iteration), then forecast with new model and get weighted average
         if 0 < w[1] < 1:
@@ -384,7 +407,6 @@ def switching_process(tool_parameters: dict(), models: dict(), init_series: list
 
             if w[1] == 1:
                 current_model = new_model
-                current_id = new_id
                 new_model = None
                 w = reset_weights()
 
@@ -434,15 +456,14 @@ def compute():
     data_config, global_params, model_params, paths, plot = parse_yaml()
 
     # 1 Get dict of series and their probabilities. These are loaded from the yaml file.
-    series_dict = load_all_series(config=data_config, plot=plot)  # these series is the series of returns on log scale
+    models_dict = load_all_series(config=data_config, plot=plot)  # these series is the series of returns on log scale
 
     # 2 Then, pre-train GARCH models by looking at different series
-    models = pre_train_models(dict_of_series=series_dict, config=data_config, plot=plot)
+    models_dict = pre_train_models(dict_of_series=models_dict, config=data_config, plot=plot)
 
     # 3 Once the models are pre-train, these are used for simulating the final series.
     # At every switch, the model that generates the final time series will be different.
-    ts, rc = switching_process(tool_parameters=global_params, models=models,
-                               init_series=series_dict, data_config=data_config)
+    ts, rc = switching_process(tool_params=global_params, models=models_dict, data_config=data_config, plot=plot)
 
     # 4 Plot simulations
     if plot:
