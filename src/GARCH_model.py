@@ -219,6 +219,7 @@ def fit(current_series, p_, q_):
     :return: trained/fitted model
     """
     # Initialize R GARCH model
+    # TODO: test that calling the same rugarch does not make models to be static and reset when creating another...
     garch_spec = rugarch.ugarchspec(
         mean_model=robjects.r(f'list(armaOrder=c({p_},{q_}), include.mean=T)'),
         # Using student T distribution usually provides better fit
@@ -264,9 +265,9 @@ def pretraining_single_thread(plot: bool, config: dict(), series_model: Model):
     """
     name_series, current_model = series_model
     logging.info(f'\n\nStart fitting process for {name_series}')
-    ARMA_order, ARMA_model = get_best_parameters(ts=list(current_model.input_ts), config=config)
+    _, ARMA_order, ARMA_model = get_best_parameters(ts=list(current_model.input_ts), config=config)  #
+    # ARMA_order, ARMA_model = (4, 0, 4), None
     # TODO: maybe this should get the best ARMAGARCH instead.
-    # ARMA_order, ARMA_model = (4, 0, 1), None
     print(current_model.id)
     print('Best parameters are: ')
     current_model.p, current_model.o, current_model.q = ARMA_order[0], ARMA_order[1], ARMA_order[2]
@@ -279,7 +280,6 @@ def pretraining_single_thread(plot: bool, config: dict(), series_model: Model):
     # Now we can fit the arch model using the best fit ARIMA model parameters
     current_model.ARMAGARCH = fit(current_model.input_ts, current_model.p, current_model.q)  # 'o' not in ARMAGARCH
     return current_model, name_series  # f'{MODEL_DICT_NAMES}{counter}'
-
 
 
 def get_forecast(model, ts):

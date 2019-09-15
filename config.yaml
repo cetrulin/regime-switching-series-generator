@@ -30,10 +30,10 @@ datasets:  # model-related
     - [1, 'raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', 0.25]
     - [2, 'raw\\quantquote\\one_second_level\\242321_csv\\20170717/spy.csv', 0.25]
     - [3, 'raw\\quantquote\\one_second_level\\242321_csv\\20160914/spy.csv', 0.25]
-    - [4, 'raw\\quantquote\\one_second_level\\242321_csv\\20170914/spy.csv', 0.25]
-    - [5, 'raw\\quantquote\\one_second_level\\242321_csv\\20170314/spy.csv', 0.25]
-    - [6, 'raw\\quantquote\\one_second_level\\242321_csv\\20160314/spy.csv', 0.25]
-    - [7, 'raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', 0.25]
+#    - [4, 'raw\\quantquote\\one_second_level\\242321_csv\\20170914/spy.csv', 0.25]
+#    - [5, 'raw\\quantquote\\one_second_level\\242321_csv\\20170314/spy.csv', 0.25]
+#    - [6, 'raw\\quantquote\\one_second_level\\242321_csv\\20160314/spy.csv', 0.25]
+#    - [7, 'raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', 0.25]
 
   cols: ['Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Suspicious']
 
