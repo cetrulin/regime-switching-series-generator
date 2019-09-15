@@ -45,8 +45,6 @@ class Model:
     q = 0
     ARMAGARCH = None
 
-    # TODO: add generated TS? / ARMA model? / beta, gamma, alpha, mu?
-
 
 def tsplot(y: pd.Series(), lags: list() = None, figsize: tuple = (15, 10), style: str = 'bmh'):
     """
@@ -294,7 +292,7 @@ def update_weights(w, switch_sharpness):
     :param switch_sharpness: speed of changes
     :return: tuple of weights updated.
     """
-    #TODO: follow sigmoid?
+    #TODO: use sigmoid?
     if switch_sharpness < 1:
         print('Minimum switch abrupcy is 0.1, so this is the value being used. ')
         switch_sharpness = 1
@@ -383,6 +381,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
 
         # 2 In case of switch, select a new model and reset weights: (1.0, 0.0) at the start (no changes) by default.
         if new_switch_type.value >= 0:
+            print(f'There is a {new_switch_type.name} switch.')
             new_model = models[f'{MODEL_DICT_NAMES}{get_new_model(current_model.id, data_config["files"])}']
             w = update_weights(w=reset_weights(), switch_sharpness=switch_shp[switch_type.value])
 
@@ -411,6 +410,8 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
             # ts.append(reconstruct(old_model_forecast, rec_value)) # TODO
             ts.append(old_model_forecast)
 
+        print(f'Period {counter}: {ts[-1]}')
+
     # 4 Plot simulations
     if plot:
         plot_results(ts)
@@ -425,6 +426,8 @@ def add_noise(noise_level: float, ts: list()):
     :param ts: time series generated
     :return time series with added noise
     """
+    print('Adding noise...')
+
     t = np.linspace(-20, 20, len(ts))
     snr = 10 * np.log(1 + noise_level)  # SNR = 0.487 for noise_level = 0.05
 
@@ -460,6 +463,7 @@ def compute():
     # 3 Once the models are pre-train, these are used for simulating the final series.
     # At every switch, the model that generates the final time series will be different.
     ts, rc = switching_process(tool_params=global_params, models=models_dict, data_config=data_config, plot=plot)
+    # TODO: reconstruction at this level? see notes from David
 
     # 4 Plot simulations
     if plot:
@@ -473,9 +477,7 @@ def compute():
     rc['ts'] = ts
     rc['ts_n1'] = ts_gn  # Gaussian noise
     rc['ts_n2'] = ts_snr  # SNR and White Gaussian Noise
-    # rc.to_csv(os.sep.join([paths['output_path'], model_params + paths['ts_export_name']]))
-    print(rc)
-    rc.to_csv(os.sep.join([paths['output_path'], paths['ts_export_name']]))
+    rc.to_csv(os.sep.join([paths['output_path'], paths['ts_export_name']]))  # TODO: add config desc to name?
 
 
 if __name__ == '__main__':
