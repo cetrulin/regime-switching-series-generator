@@ -22,16 +22,13 @@ from rpy2.robjects import numpy2ri
 
 # Set values to R libs
 base = importr('base')
-rugarch = None
-with open("config.yaml", 'r') as stream:
-    rugarch = importr("rugarch", lib_loc=yaml.safe_load(stream)['env']['r_libs_path'])
+rugarch = importr("rugarch", lib_loc=yaml.safe_load(open("config.yaml", 'r') )['env']['r_libs_path'])
 TIME_HORIZON = 1  # this is fixed. other values would require minor development
 MODEL_DICT_NAMES = 'fitted_'
 
 # Logger
 logging.basicConfig()
 logging.getLogger().setLevel(logging.INFO)
-# TODO: use logger instead of prints.
 
 
 class Switch(Enum):
@@ -257,15 +254,16 @@ def pre_train_models(dict_of_series: dict(), config: dict(), plot: bool = False)
     return dict(map(reversed, tuple(mapped)))
 
 
-def pretraining_single_thread(plot, config, series_model):
+def pretraining_single_thread(plot: bool, config: dict(), series_model: Model):
     """
     This handles each thread in 'load_all_series'
+    :param config:
     :param plot: plot series?
-    :param model: list of series as an object of Model.
+    :param series_model: list of series as an object of Model.
     :return: fitted model and description to be added to dictionary
     """
     name_series, current_model = series_model
-    logging.INFO(f'\n\nStart fitting process for {name_series}')
+    logging.info(f'\n\nStart fitting process for {name_series}')
     ARMA_order, ARMA_model = get_best_parameters(ts=list(current_model.input_ts), config=config)
     # TODO: maybe this should get the best ARMAGARCH instead.
     # ARMA_order, ARMA_model = (4, 0, 1), None
@@ -399,7 +397,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     counter = 0
     w = reset_weights()  # tuple (current, new) of model weights.
     # rec_value = TODO
-    logging.INFO('Start of the context-switching generative process:')
+    logging.info('Start of the context-switching generative process:')
     for counter in range(tool_params['periods']):
         # 1 Start forecasting in 1 step horizons using the current model
         old_model_forecast = get_forecast(current_model.ARMAGARCH, list(current_model.input_ts)
@@ -408,7 +406,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
 
         # 2 In case of switch, select a new model and reset weights: (1.0, 0.0) at the start (no changes) by default.
         if new_switch_type.value >= 0:
-            logging.INFO(f'There is a {new_switch_type.name} switch.')
+            logging.info(f'There is a {new_switch_type.name} switch.')
             new_model = models[f'{MODEL_DICT_NAMES}{get_new_model(current_model.id, data_config["files"])}']
             w = update_weights(w=reset_weights(), switch_sharpness=switch_shp[switch_type.value])
             # TODO: see why w does not change. does it reset or the issue is when updating?
@@ -438,7 +436,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
             # ts.append(reconstruct(old_model_forecast, rec_value)) # TODO
             ts.append(old_model_forecast)
 
-        logging.INFO(f'Period {counter}: {ts[-1]}')
+        logging.info(f'Period {counter}: {ts[-1]}')
 
     # 4 Plot simulations
     if plot:
@@ -454,7 +452,7 @@ def add_noise(noise_level: float, ts: list()):
     :param ts: time series generated
     :return time series with added noise
     """
-    print('Adding noise...')
+    logging.info('Adding noise...')
 
     t = np.linspace(-20, 20, len(ts))
     snr = 10 * np.log(1 + noise_level)  # SNR = 0.487 for noise_level = 0.05
