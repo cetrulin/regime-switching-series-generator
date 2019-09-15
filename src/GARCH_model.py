@@ -21,7 +21,7 @@ from rpy2.robjects import numpy2ri
 base = importr('base')
 rugarch = None
 TIME_HORIZON = 1  # this is fixed. other values would require minor development
-MODEL_DICT_NAMES = 'model_fitted_'
+MODEL_DICT_NAMES = 'fitted_'
 # TODO: use logger instead of prints.
 
 
@@ -44,6 +44,8 @@ class Model:
     o = 0
     q = 0
     ARMAGARCH = None
+
+    # TODO: add generated TS? / ARMA model? / beta, gamma, alpha, mu?
 
 
 def tsplot(y: pd.Series(), lags: list() = None, figsize: tuple = (15, 10), style: str = 'bmh'):
@@ -104,12 +106,13 @@ def plot_results(simulations: pd.Series()):
 def parse_yaml():
     """ This function parses the config file and returns options, paths, etc."""
     global rugarch
+
     # Read YAML file
     with open("config.yaml", 'r') as stream:
         config = yaml.safe_load(stream)
         data_config = config['datasets']
-        model_params = config['datasets']['files']
         global_params = config['params']
+        model_params = config['datasets']['files']
         paths = config['paths']
         plot = config['plot']
         rugarch = importr("rugarch", lib_loc=config['env']['r_libs_path'])
@@ -127,34 +130,27 @@ def load_all_series(config: dict(), plot: bool = True):
     # Load raw time series for the pre-training of the models
     series_dict = dict()
     counter = 1
-    for file, prob in config['files']:
-        # TODO: objects of class Model should be created here
+    for file, prob in config['files']:  # TODO parallelize this with multiprocessing
         df = pd.read_csv(os.path.join(config['path'], file), header=None)
         df.columns = config['cols']
         df.set_index(keys=config['index_col'], drop=True, inplace=True)
 
         # Clean nulls and select series
-        raw_series = df[[config['sim_col']]] # .dropna()
+        raw_series = df[[config['sim_col']]]  # .dropna()
         raw_returns_series = 100 * df[[config['sim_col']]].pct_change()  # .dropna()
         # the returns later are calculated in a different way and they use log scale
-
-        # Plot initial df and returns
-        if plot:
+        if plot:  # Plot initial df and returns
             plot_input(df, 'Raw dataset')
             plot_input(raw_series, 'Prices')
             plot_input(raw_returns_series, 'Returns')
 
-        # train the standardization
-        ts = prepare_raw_series(config['parsing_mode'], raw_series)
-
-        ts_model = Model(id=counter, raw_input_path=os.path.join(config['path'], file),
-                         input_ts=ts, probability=prob)
-
-
-        # Add to dictionary
-        series_dict.update({f'{MODEL_DICT_NAMES}{counter}': ts_model})
+        # Prepare Model and add it to dictionary
+        series_dict.update({f'{MODEL_DICT_NAMES}{counter}':
+                            Model(id=counter,
+                                  raw_input_path=os.path.join(config['path'], file),
+                                  input_ts=prepare_raw_series(config['parsing_mode'], raw_series),
+                                  probability=prob)})
         counter = counter + 1
-
     return series_dict
 
 
@@ -222,12 +218,11 @@ def fit(current_series, p_, q_):
     model = rugarch.ugarchfit(
         spec=garch_spec,
         data=np.array(current_series),
-        out_sample=0  # TODO: test this. does it work? otherwise set 1 as default.
+        out_sample=1  # : remember: the 1st forecast should be reproducible in the reconst., as the real value exists
     )
-    print(type(model))
-    print('\n\n\n\n\nSee the type above.')
     numpy2ri.deactivate()
-    #TODO IMP: print Beta and Gamma to check that their sum <= 1
+    #TODO IMP:
+    # assert model.beta + model.alpha <= 1
     return model
 
 
@@ -247,6 +242,7 @@ def pre_train_models(dict_of_series: dict(), config: dict(), plot: bool = False)
         # TODO: objects of class Model should be updated here
         # TODO IMP: uncomment line below after testing.
         # ARMA_order, ARMA_model = get_best_parameters(ts=list(current_model.input_ts), config=config)
+        # TODO: maybe this should get the best ARMAGARCH instead.
         ARMA_order = (4, 0, 1)
         ARMA_model = None
         print('Best parameters are: ')
@@ -298,6 +294,7 @@ def update_weights(w, switch_sharpness):
     :param switch_sharpness: speed of changes
     :return: tuple of weights updated.
     """
+    #TODO: follow sigmoid?
     if switch_sharpness < 1:
         print('Minimum switch abrupcy is 0.1, so this is the value being used. ')
         switch_sharpness = 1
@@ -356,7 +353,6 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     This function computes transitions between time series and returns the resulting time series.
     :param tool_params: info regarding to stitches from yaml file
     :param models: fitted models
-    :param init_series - initial series to feed for forecasts when the generated series does not have enough length
     :param data_config: datasets info from yaml file
     :param plot: plot resulting ts?
     :return: ts - series generated
@@ -372,28 +368,28 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     new_model = None
 
     # Initialize main series
-    ts = pd.Series()
+    ts = list()
     # rec_ts = pd.Series() TODO
     rc = list()
     counter = 0
     w = reset_weights()  # tuple (current, new) of model weights.
     # rec_value = TODO
     print('Start of the context-switching generative process:')
-    while counter < tool_params['stop_criteria']:
+    for counter in range(tool_params['periods']):
         # 1 Start forecasting in 1 step horizons using the current model
-        old_model_forecast = get_forecast(current_model.ARMAGARCH, current_model.input_ts
-                                          if counter < current_model.p or counter < current_model.q else ts)  # not 'o'
-        start_switch_type = starts_switch(tool_params['switching_probability'], tool_params['abrupt_drift_prob'])
+        old_model_forecast = get_forecast(current_model.ARMAGARCH, list(current_model.input_ts)
+                                          if counter < current_model.p or counter < current_model.q else list(ts))
+        new_switch_type = starts_switch(tool_params['switching_probability'], tool_params['abrupt_drift_prob'])
 
         # 2 In case of switch, select a new model and reset weights: (1.0, 0.0) at the start (no changes) by default.
-        if start_switch_type >= 0:
-            new_model = models[get_new_model(current_model.id, data_config['files'])]
-            w = update_weights(w=reset_weights(), switch_sharpness=switch_shp[switch_type])
+        if new_switch_type.value >= 0:
+            new_model = models[f'{MODEL_DICT_NAMES}{get_new_model(current_model.id, data_config["files"])}']
+            w = update_weights(w=reset_weights(), switch_sharpness=switch_shp[switch_type.value])
 
         # 3 Log switches and events
-        rc.append({'row': counter, 'new_switch': start_switch_type, 'weights': w,
+        rc.append({'n_row': counter, 'new_switch': new_switch_type.name, 'weights': w,
                    'current_model_id': current_model.id,   # Add p,o,q to this?
-                   'new_model_id': None if new_model is not None else new_model.id})
+                   'new_model_id': -1 if new_model is None else new_model.id})
 
         # 4 if it's switching (started now or in other iteration), then forecast with new model and get weighted average
         if 0 < w[1] < 1:
@@ -412,34 +408,34 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
 
         # 3. Otherwise, use the current forecast
         else:
-            ts.append(reconstruct(old_model_forecast))
-        counter = counter + 1
+            # ts.append(reconstruct(old_model_forecast, rec_value)) # TODO
+            ts.append(old_model_forecast)
 
     # 4 Plot simulations
     if plot:
         plot_results(ts)
     # non-reconstructed ts is not returned  -TODO
-    return ts,  pd.DataFrame(rc)  # TODO return rec_ts, pd.DataFrame(rc)
+    return pd.Series(ts),  pd.DataFrame(rc)  # TODO return pd.Series(rec_ts), pd.DataFrame(rc)
 
 
-def add_noise(noise_level: float, ts: pd.Series()):
+def add_noise(noise_level: float, ts: list()):
     """
     This function adds noise to the time series passed as a parameter.
     :param noise_level: percentage representing level of noise to be added
     :param ts: time series generated
     :return time series with added noise
     """
-    t = np.linspace(-20, 20, 500)
+    t = np.linspace(-20, 20, len(ts))
     snr = 10 * np.log(1 + noise_level)  # SNR = 0.487 for noise_level = 0.05
 
     # Random N - length vector of Gaussian numbers
-    r = np.randn(1, len(t))
+    r = np.random.randn(1, len(t))
 
     # 6.1 Add noise using (noise_level)% Gaussian Noise Method
-    ts_n1 = ts + noise_level * r * ts  # Noisy signal
+    ts_n1 = pd.Series((ts + noise_level * r * ts)[0])  # Noisy signal
 
     # 6.2 Add noise using (10 * np.log(1 + noise_level)) SNR and White Gaussian Noise
-    ts_n2 = ts + np.sqrt((10 ^ (-snr / 10))) * r  # Noisy signal
+    ts_n2 = pd.Series((ts + np.sqrt((10 ** (-snr / 10))) * r)[0])  # Noisy signal
 
     return ts_n1, ts_n2
 
@@ -470,14 +466,16 @@ def compute():
         plot_results(ts)
 
     # 5 Add noise (gaussian noise and SNR)
-    noise_level = model_params['white_noise_level']
-    ts_gn, ts_snr = add_noise(noise_level, ts)
+    noise_level = global_params['white_noise_level']
+    ts_gn, ts_snr = add_noise(noise_level, list(ts))
 
     # 6 Final simulation (TS created) and a log of the regime changes (RC) to CSV files
     rc['ts'] = ts
     rc['ts_n1'] = ts_gn  # Gaussian noise
     rc['ts_n2'] = ts_snr  # SNR and White Gaussian Noise
-    rc.to_csv(os.sep.join([paths['output'], model_params.values() + paths['ts_export_name']]))
+    # rc.to_csv(os.sep.join([paths['output_path'], model_params + paths['ts_export_name']]))
+    print(rc)
+    rc.to_csv(os.sep.join([paths['output_path'], paths['ts_export_name']]))
 
 
 if __name__ == '__main__':

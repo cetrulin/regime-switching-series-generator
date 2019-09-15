@@ -1,16 +1,16 @@
 params:
   max_models: 7
-  stop_criteria: 100000
-  switching_probability: 0.01
+  periods: 1000  # number of rows of the time series to be generated
+  switching_probability: 0.05
   abrupt_drift_prob: 0.25
   gradual_drift_sharpness: 1   # number from 1 to 10 (10 is an instant switch)
   abrupt_drift_sharpness: 7
-  white_noise_level: 0.05 # weight of white noise in the generated TS as a percentage. 0 = no white noise. 100 only produces white noise
+  white_noise_level: 0.05  # weight of white noise in the generated TS as a percentage. 0 = no white noise. 100 only produces white noise
 
 plot: False  # plot TS?
 
 paths:
-  output_path: 'C:/Users/suare/OneDrive/Desktop'
+  output_path: 'C:\Users\suare\OneDrive\Escritorio'
   ts_export_name: 'timeseries_created_1.csv'
 
 #model:
@@ -30,10 +30,10 @@ datasets:  # model-related
     - ['raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', 0.25]
     - ['raw\\quantquote\\one_second_level\\242321_csv\\20170717/spy.csv', 0.25]
     - ['raw\\quantquote\\one_second_level\\242321_csv\\20160914/spy.csv', 0.25]
-#    - ['raw\\quantquote\\one_second_level\\242321_csv\\20170914/spy.csv', 0.25]
-#    - ['raw\\quantquote\\one_second_level\\242321_csv\\20170314/spy.csv', 0.25]
-#    - ['raw\\quantquote\\one_second_level\\242321_csv\\20160314/spy.csv', 0.25]
-#    - ['raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', 0.25]
+    - ['raw\\quantquote\\one_second_level\\242321_csv\\20170914/spy.csv', 0.25]
+    - ['raw\\quantquote\\one_second_level\\242321_csv\\20170314/spy.csv', 0.25]
+    - ['raw\\quantquote\\one_second_level\\242321_csv\\20160314/spy.csv', 0.25]
+    - ['raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', 0.25]
 
   cols: ['Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Suspicious']
 
