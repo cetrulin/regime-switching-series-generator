@@ -265,8 +265,9 @@ def pretraining_single_thread(plot: bool, config: dict(), series_model: Model):
     """
     name_series, current_model = series_model
     logging.info(f'\n\nStart fitting process for {name_series}')
-    _, ARMA_order, ARMA_model = get_best_parameters(ts=list(current_model.input_ts), config=config)  #
-    # ARMA_order, ARMA_model = (4, 0, 4), None
+    # TODO: uncomment line below
+    # _, ARMA_order, ARMA_model = get_best_parameters(ts=list(current_model.input_ts), config=config)  #
+    ARMA_order, ARMA_model = (4, 0, 4), None
     # TODO: maybe this should get the best ARMAGARCH instead.
     print(current_model.id)
     print('Best parameters are: ')
@@ -325,7 +326,7 @@ def update_weights(w, switch_sharpness):
 
     # see for reference get_weight and reset_weights.
     w = (w[0] - incr, w[1] + incr)
-    w = (0 if w[0] < 0 else w[0], 1 if w[1] > 1 else w[1])  # deal with numbers out of range
+    w = (0 if w[0] <= 0 else w[0], 1 if w[1] >= 1 else w[1])  # deal with numbers out of range
     return w
 
 
@@ -334,7 +335,7 @@ def reset_weights():
     This function init weights (or different, depending of gradual or abrupt drifts)
     :return default/initial weight.
     """
-    w = (0, 1)  # Initialize
+    w = (1, 0)  # Initialize
     return w
 
 
@@ -407,29 +408,36 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         # 2 In case of switch, select a new model and reset weights: (1.0, 0.0) at the start (no changes) by default.
         if new_switch_type.value >= 0:
             logging.info(f'There is a {new_switch_type.name} switch.')
+            switch_type = new_switch_type
             new_model = models[f'{MODEL_DICT_NAMES}{get_new_model(current_model.id, data_config["files"])}']
+            print(w)
             w = update_weights(w=reset_weights(), switch_sharpness=switch_shp[switch_type.value])
+            print(w)
             # TODO: see why w does not change. does it reset or the issue is when updating?
 
         # 3 Log switches and events
-        rc.append({'n_row': counter, 'new_switch': new_switch_type.name, 'weights': w,
+        rc.append({'n_row': counter, 'new_switch': new_switch_type.name,
+                   'cur_switch': switch_type.name, 'weights': w,
                    'current_model_id': current_model.id,   # Add p,o,q to this?
                    'new_model_id': -1 if new_model is None else new_model.id})
+        assert w[0] + w[1] == 1
 
         # 4 if it's switching (started now or in other iteration), then forecast with new model and get weighted average
         if 0 < w[1] < 1:
+            print('Update weights:')
             # Forecast and expand current series (current model is the old one, this becomes current when weight == 1)
-            new_model_forecast = get_forecast(new_model, ts)
-            ts.append(new_model_forecast * w[1] + old_model_forecast * w[0])
+            new_model_forecast = get_forecast(new_model.ARMAGARCH, list(ts))
+            ts.append(old_model_forecast * w[0] + new_model_forecast * w[1])
             # TODO: TEST reconstruction once the rest works
             # rec_ts.append(reconstruct(new_model_forecast, rec_value) * w[1] +
             #              reconstruct(old_model_forecast, rec_value) * w[0])
-            update_weights(w, switch_shp[switch_type])
+            w = update_weights(w, switch_shp[switch_type.value])
 
             if w[1] == 1:
                 current_model = new_model
                 new_model = None
                 w = reset_weights()
+                switch_type = Switch.NONE
 
         # 3. Otherwise, use the current forecast
         else:
