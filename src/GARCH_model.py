@@ -465,7 +465,9 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         if 0 < w[1] < 1:
             print('Update weights:')
             # Forecast and expand current series (current model is the old one, this becomes current when weight == 1)
-            new_model_forecast = get_forecast(new_model, list(ts))
+            new_model_forecast = get_forecast(new_model, list(new_model.input_ts)
+                                              if counter <= max(new_model.get_lags()) * 2 else list(ts))
+
             ts.append(old_model_forecast * w[0] + new_model_forecast * w[1])
             # TODO: TEST reconstruction once the rest works
             # rec_ts.append(reconstruct(new_model_forecast, rec_value) * w[1] +
