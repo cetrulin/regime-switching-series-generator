@@ -36,9 +36,10 @@ class Switch(Enum):
     GRADUAL = 0
     ABRUPT = 1
 
-
+# TODO: add this to a separate py file
 @dataclass
 class Model:
+
     # Model attributes and data
     id: int
     raw_input_path: float
@@ -50,6 +51,17 @@ class Model:
     o = 0
     q = 0
     ARMAGARCH = None
+    # TODO: save ARMAGARCHspec of the fitted model instead of the whole uGARCHfit object
+
+    def get_lags(self):
+        """ This function returns a list of lags (p, o, q) for the current model. """
+        return [self.p, self.o, self.q]
+
+    def set_lags(self, p_, o_, q_):
+        """ This function sets a list of lags (p, o, q) for the current model. """
+        self.o = o_
+        self.p = p_
+        self.q = q_
 
 
 def tsplot(y: pd.Series(), lags: list() = None, figsize: tuple = (15, 10), style: str = 'bmh'):
@@ -153,7 +165,7 @@ def single_thread(config, plot, file_config):
 
 def load_all_series(config: dict(), plot: bool = True):
     """
-    This function loads the intial series to feed them to models.
+    This function loads the initial series to feed them to models.
     :param config: from YAML file
     :param plot: plot series?
     :return: dict of series
@@ -210,6 +222,7 @@ def get_best_parameters(ts: list(), config: dict()):
     return best_aic, best_order, best_mdl
 
 
+# TODO: add rugarch related functions to a separate py file
 def fit(current_series, p_, q_):
     """
     This function uses rugarch to fit an ARMA-GARCH model for p, 0, q (d!=0 only in ARIMA-GARCH)
@@ -226,12 +239,14 @@ def fit(current_series, p_, q_):
         variance_model=robjects.r('list(garchOrder=c(1,1))'),
         distribution_model='sged')  # 'std'
 
+    # TODO: at least we should adjust GARCH as well.
+    # TODO: Should I consider the warning from the R version?
     # Train R GARCH model on returns as %
     numpy2ri.activate()  # Used to convert training set to R list for model input
     model = rugarch.ugarchfit(
         spec=garch_spec,
         data=np.array(current_series),
-        out_sample=1  # : remember: the 1st forecast should be reproducible in the reconst., as the real value exists
+        out_sample=20  # remember: the 1st forecast should be reproducible in the reconst., as the real value exists
     )
     numpy2ri.deactivate()
     #TODO IMP:
@@ -268,11 +283,12 @@ def pretraining_single_thread(plot: bool, config: dict(), series_model: Model):
     # TODO: uncomment line below
     # _, ARMA_order, ARMA_model = get_best_parameters(ts=list(current_model.input_ts), config=config)  #
     ARMA_order, ARMA_model = (4, 0, 4), None
+
     # TODO: maybe this should get the best ARMAGARCH instead.
     print(current_model.id)
     print('Best parameters are: ')
-    current_model.p, current_model.o, current_model.q = ARMA_order[0], ARMA_order[1], ARMA_order[2]
-    print(f'{current_model.p}, {current_model.o}, {current_model.q}')
+    current_model.set_lags(ARMA_order[0], ARMA_order[1], ARMA_order[2])
+    print(f'{current_model.get_lags()}')
 
     if plot:
         tsplot(ARMA_order.resid, lags=30)
@@ -283,15 +299,39 @@ def pretraining_single_thread(plot: bool, config: dict(), series_model: Model):
     return current_model, name_series  # f'{MODEL_DICT_NAMES}{counter}'
 
 
-def get_forecast(model, ts):
+""" 
+This function sets the fitted parameters in a rugarch spec. 
+@:param fitted: fitted model
+"""
+get_spec = robjects.r('''function(fitted) {
+                            spec=getspec(fitted)
+                            setfixed(spec) <- as.list(coef(fitted))
+                            return(spec)
+                         }''')
+
+
+def get_forecast(model: Model, ts: list()):
     """
     This function calls the R rugarch library to produce a the ARMA-GARCH forecast.
     :param model - current selected model
     :param ts - current series
     :return forecast or the next time horizon
     """
-    # print(ts)  # TODO: see why this is always the same
-    garch_forecast = rugarch.ugarchforecast(model, data=ts, n_ahead=1, n_roll=1)
+    print(f'len: {len(ts)}')
+    # spec = rugarch.getspec(model)
+    # rugarch.setfixed(spec) = model.slots['fit'].rx2('coef')
+    """
+    spec=getspec(model.fit.final)
+    setfixed(spec) <- as.list(coef(model.fit.final))
+    model.forecast.2= ugarchforecast(spec, n.ahead=1, n.roll=23, data=.............)
+    ----
+    filt1 = ugarchfilter(spec, sp500ret[1:1200, ], n.old = 1000)
+
+    """
+    max_lag = max(model.get_lags())
+    spec = get_spec(model.ARMAGARCH)
+    garch_forecast = rugarch.ugarchforecast(spec, data=ts, n_ahead=1, n_roll=max_lag, out_sample=max_lag)
+    print(np.array(garch_forecast.slots['forecast'].rx2('seriesFor')).flatten())  # TODO: take the right pos of this array. Is it 0 or -1??
     return np.array(garch_forecast.slots['forecast'].rx2('seriesFor')).flatten()[0]
 
 
@@ -401,8 +441,9 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     logging.info('Start of the context-switching generative process:')
     for counter in range(tool_params['periods']):
         # 1 Start forecasting in 1 step horizons using the current model
-        old_model_forecast = get_forecast(current_model.ARMAGARCH, list(current_model.input_ts)
-                                          if counter < current_model.p or counter < current_model.q else list(ts))
+        old_model_forecast = get_forecast(current_model, list(current_model.input_ts)
+                                          if counter <= max(current_model.get_lags())*2 else list(ts))
+        # todo: IMP CHECK IF ELSE ABOVE, AS IT LOOKS LIKE IT ENTERS EXTRA 2 TIMES...
         new_switch_type = starts_switch(tool_params['switching_probability'], tool_params['abrupt_drift_prob'])
 
         # 2 In case of switch, select a new model and reset weights: (1.0, 0.0) at the start (no changes) by default.
@@ -410,9 +451,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
             logging.info(f'There is a {new_switch_type.name} switch.')
             switch_type = new_switch_type
             new_model = models[f'{MODEL_DICT_NAMES}{get_new_model(current_model.id, data_config["files"])}']
-            print(w)
             w = update_weights(w=reset_weights(), switch_sharpness=switch_shp[switch_type.value])
-            print(w)
             # TODO: see why w does not change. does it reset or the issue is when updating?
 
         # 3 Log switches and events
@@ -426,7 +465,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         if 0 < w[1] < 1:
             print('Update weights:')
             # Forecast and expand current series (current model is the old one, this becomes current when weight == 1)
-            new_model_forecast = get_forecast(new_model.ARMAGARCH, list(ts))
+            new_model_forecast = get_forecast(new_model, list(ts))
             ts.append(old_model_forecast * w[0] + new_model_forecast * w[1])
             # TODO: TEST reconstruction once the rest works
             # rec_ts.append(reconstruct(new_model_forecast, rec_value) * w[1] +
@@ -444,7 +483,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
             # ts.append(reconstruct(old_model_forecast, rec_value)) # TODO
             ts.append(old_model_forecast)
 
-        logging.info(f'Period {counter}: {ts[-1]}')
+        logging.info(f'Period {counter}: {ts}')
 
     # 4 Plot simulations
     if plot:
@@ -511,6 +550,7 @@ def compute():
     rc['ts'] = ts
     rc['ts_n1'] = ts_gn  # Gaussian noise
     rc['ts_n2'] = ts_snr  # SNR and White Gaussian Noise
+    # TODO: sort columns on desired order (add this order to YAML file)
     rc.to_csv(os.sep.join([paths['output_path'], paths['ts_export_name']]))  # TODO: add config desc to name?
 
 
