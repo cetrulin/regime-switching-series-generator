@@ -125,8 +125,7 @@ def fit_model(show_plt: bool, params: dict(), armagarch_lib: dict(), series_mode
     logging.info(f'\n\n 1. Setting ARMAGARCH library for model {current_model.id}')
 
     logging.info(f'\n\n 2. Start fitting process for {current_model.id}')
-    # TODO: uncomment line below
-    # _, ARMA_order, ARMA_model = get_best_arma_parameters(ts=list(current_model.input_ts), config=params)  #
+    _, ARMA_order, ARMA_model = get_best_arma_parameters(ts=list(current_model.input_ts), config=params)  #
     ARMA_order = (4, 0, 4)
 
     # TODO: maybe this should get the best ARMAGARCH instead. (add option in YAML to pick get_param method)
@@ -171,7 +170,6 @@ def update_weights(w, switch_sharpness):
     :param switch_sharpness: speed of changes
     :return: tuple of weights updated.
     """
-
     if switch_sharpness < 0.1:
         print('Minimum switch abrupcy is 0.1, so this is the value being used. ')
         switch_sharpness = 0.1
@@ -241,18 +239,14 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     switch_type = Switch.NONE
 
     # Start with model A as initial model
-    # current_id = 1
     current_model = models[f'{MODEL_DICT_NAMES}{1}']  # first model -> current_model = A (randomly chosen)
     new_model = None
 
     # Initialize main series
-    ts = list()
-    # rec_ts = pd.Series() TODO
+    ts = list()  # rec_ts = list()
     rc = list()
-    counter = 0
     w = reset_weights()  # tuple (current, new) of model weights.
     sig_w = reset_weights()
-    # rec_value = TODO
     logging.info('Start of the context-switching generative process:')
     for counter in range(tool_params['periods']):
         # 1 Start forecasting in 1 step horizons using the current model
@@ -285,10 +279,8 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
                                                     armagarch_lib)
             ts.append(old_model_forecast * (sig_w[0] if tool_params['w_func'] == 'sig' else w[0]) +
                       new_model_forecast * (sig_w[1] if tool_params['w_func'] == 'sig' else w[1]))
-
-            # TODO: TEST reconstruction once the rest works
             # rec_ts.append(gutils.reconstruct(new_model_forecast, rec_value) * (sig_w[1] if tool_params['w_func'] == 'sig' else w[1])+
-            #               gutils.reconstruct(old_model_forecast, rec_value) * (sig_w[0] if tool_params['w_func'] == 'sig' else w[0]))  # TODO: finish reconstruction
+            #               gutils.reconstruct(old_model_forecast, rec_value) * (sig_w[0] if tool_params['w_func'] == 'sig' else w[0]))   # old reconstruction
 
             w = update_weights(w, switch_shp[switch_type.value])
             sig_w = (1 - gutils.get_sigmoid()[int(w[0]*100)], gutils.get_sigmoid()[int(w[0]*100)])  # kernel to sig func
@@ -303,8 +295,8 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
 
         # 3. Otherwise, use the current forecast
         else:
-            # ts.append(reconstruct(old_model_forecast, rec_value)) # TODO
             ts.append(old_model_forecast)
+            # rec_ts.append(gutils.reconstruct(old_model_forecast, rec_value))  # old reconstruction
 
         logging.info(f'Period {counter}: {ts}')
 
@@ -312,7 +304,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     if show_plt:
         gutils.plot_results(ts)
 
-    return pd.Series(ts),  pd.DataFrame(rc)  # TODO return pd.Series(rec_ts), pd.DataFrame(rc)
+    return pd.Series(ts),  pd.DataFrame(rc)  # return pd.Series(rec_ts), pd.DataFrame(rc)
 
 
 def compute():
@@ -337,7 +329,7 @@ def compute():
     # At every switch, the model that generates the final time series will be different.
     ts, rc = switching_process(tool_params=global_params, models=models_dict,
                                data_config=input_data_config, armagarch_lib=armagarch_lib, show_plt=plt_flag)
-    # TODO: reconstruction at this level? see notes from David
+    # rec_ts = gutils.reconstruct(ts)  # TODO: reconstruction at this level? from which prices? talk to David
 
     # 4 Plot simulations
     if plt_flag:
@@ -348,7 +340,7 @@ def compute():
     ts_gn, ts_snr = gutils.add_noise(global_params['white_noise_level'], list(ts))
 
     # 6 Final simulation (TS created) and a log of the regime changes (RC) to CSV files
-    rc['ts'] = ts
+    rc['ts'] = ts  # rc['rec_ts'] = rec_ts
     rc['ts_n1'] = ts_gn  # Gaussian noise
     rc['ts_n2'] = ts_snr  # SNR and White Gaussian Noise
     rc[output_format['cols']].to_csv(os.sep.join([output_format['path'], output_format['ts_name']]), index=False)
