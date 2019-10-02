@@ -82,6 +82,18 @@ def prepare_raw_series(mode: str, ts: pd.DataFrame()):
     return ts[ts.columns[0]].apply(lambda x: 0 if math.isnan(x) else x)  # the first value = NaN due to the returns
 
 
+def sigmoid(x):
+    """
+    sigmoid = lambda x: 1 / (1 + np.exp(-x))
+    """
+    return 1 / (1 + np.exp(-x))
+
+
+def get_sigmoid():
+    x = np.linspace(-5, 5, 100)  # for sigmoid
+    return sigmoid(x)
+
+
 def reconstruct(new_model_forecast: float, init_value: float):
     """
     This function reconstructs the initial series, as the models are trained with returns/deltas in log scale.

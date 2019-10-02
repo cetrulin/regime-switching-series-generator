@@ -24,11 +24,6 @@ class Model:
     q = 0
     ARMAGARCHspec = None
 
-    def load_lib(self, lib_conf):
-        """ This function loads an R library from the environment passed."""
-        # base = importr('base')  # TODO: remove? only if it works when this is commented out
-        self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
-
     def get_lags(self):
         """ This function returns a list of lags (p, o, q) for the current model. """
         return [self.p, self.o, self.q]
@@ -49,7 +44,6 @@ class Model:
         :return: trained/fitted model
         """
         # Initialize R GARCH model
-        # TODO: test that calling the same rugarch does not make models to be static and reset when creating another...
         self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
         spec = self.rugarch_lib_instance.ugarchspec(
             mean_model=robjects.r(f'list(armaOrder=c({p_},{q_}), include.mean=T)'),
@@ -57,14 +51,12 @@ class Model:
             variance_model=robjects.r('list(garchOrder=c(1,1))'),
             distribution_model='sged')  # 'std'
 
-        # TODO: at least we should adjust GARCH as well.
-        # TODO: Should I consider the warning from the R version?
         # Train R GARCH model on returns as %
         numpy2ri.activate()  # Used to convert training set to R list for model input
         model = self.rugarch_lib_instance.ugarchfit(
             spec=spec,
             data=np.array(current_series),
-            out_sample=20  # remember: the 1st forecast should be reproducible in the reconst., as the real value exists
+            out_sample=1  # remember: the 1st forecast should be reproducible in the reconst., as the real value exists
         )
         numpy2ri.deactivate()
         # TODO IMP:  assert self.model.beta + self.model.alpha <= 1
@@ -80,12 +72,10 @@ class Model:
         :return forecast or the next time horizon
         """
         self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
-
+        forecast = self.rugarch_lib_instance.ugarchforecast(self.ARMAGARCHspec, data=ts,
+                                                            n_ahead=1, n_roll=0, out_sample=0)
         print(f'len: {len(ts)}')
-        max_lag = max(self.get_lags())
-        forecast = self.rugarch_lib_instance.ugarchforecast(self.ARMAGARCHspec, data=ts, n_ahead=1,
-                                                            n_roll=max_lag, out_sample=max_lag)  # TODO: take the appropiate number of lags (1? for out_sample / and nroll??)
-        print(np.array(forecast.slots['forecast'].rx2('seriesFor')).flatten())  # TODO: take the right pos of this array. Is it 0 or -1??
+        print(np.array(forecast.slots['forecast'].rx2('seriesFor')).flatten())
 
         self.rugarch_lib_instance = None
         return np.array(forecast.slots['forecast'].rx2('seriesFor')).flatten()[0]

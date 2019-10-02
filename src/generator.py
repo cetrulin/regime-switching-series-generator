@@ -11,7 +11,6 @@ from functools import partial
 from src import generator_utils as gutils
 from src.model import Model
 
-# TODO: Change name from GARCH_model.py to generator.py  (search best English name for 'Generador')
 MODEL_DICT_NAMES = 'fitted_'
 
 # Logger
@@ -48,23 +47,24 @@ def instantiate_model(config, show_plt, file_config):
     :param file_config: list of ids, files and probabilities.
     :return: model and desc tuple
     """
+    # 1. Read dataset for model
     counter, file, prob = file_config
-    print(f'counter: {counter}')
     df = pd.read_csv(os.path.join(config['path'], file), header=None)
     df.columns = config['cols']
     df.set_index(keys=config['index_col'], drop=True, inplace=True)
 
-    # Clean nulls and select series
+    # 2. Clean nulls and select series
     raw_series = df[[config['sim_col']]]  # .dropna()
     raw_returns_series = 100 * df[[config['sim_col']]].pct_change()  # .dropna()
-
     # the returns later are calculated in a different way and they use log scale
-    if show_plt:  # Plot initial df and returns
+
+    # Plot initial df and returns
+    if show_plt:
         gutils.plot_input(df, 'Raw dataset')
         gutils.plot_input(raw_series, 'Prices')
         gutils.plot_input(raw_returns_series, 'Returns')
 
-    # Prepare Model and return it to be added to a dictionary
+    # 3. Prepare Model and return it to be added to a dictionary
     return Model(id=counter, raw_input_path=os.path.join(config['path'], file),
                  input_ts=gutils.prepare_raw_series(config['parsing_mode'], raw_series),
                  probability=prob),  f'{MODEL_DICT_NAMES}{counter}'
@@ -161,7 +161,6 @@ def fit_models(series_dict: dict(), input_data_conf: dict(), params: dict(),
     logging.info('Fitting models...')
     pool = multiprocessing.Pool(processes=len(input_data_conf['files']))
     mapped = pool.map(partial(fit_model, show_plt, params, armagarch_lib), series_dict.items())
-    print('hello')
     return dict(map(reversed, tuple(mapped)))
 
 
@@ -172,14 +171,14 @@ def update_weights(w, switch_sharpness):
     :param switch_sharpness: speed of changes
     :return: tuple of weights updated.
     """
-    #TODO: use sigmoid?
-    if switch_sharpness < 1:
+
+    if switch_sharpness < 0.1:
         print('Minimum switch abrupcy is 0.1, so this is the value being used. ')
-        switch_sharpness = 1
-    incr = 0.1 * switch_sharpness
+        switch_sharpness = 0.1
+    incr = switch_sharpness
+    w = (w[0] - incr, w[1] + incr)
 
     # see for reference get_weight and reset_weights.
-    w = (w[0] - incr, w[1] + incr)
     w = (0 if w[0] <= 0 else w[0], 1 if w[1] >= 1 else w[1])  # deal with numbers out of range
     return w
 
@@ -252,14 +251,14 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     rc = list()
     counter = 0
     w = reset_weights()  # tuple (current, new) of model weights.
+    sig_w = reset_weights()
     # rec_value = TODO
     logging.info('Start of the context-switching generative process:')
     for counter in range(tool_params['periods']):
         # 1 Start forecasting in 1 step horizons using the current model
         old_model_forecast = current_model.forecast(list(current_model.input_ts)
-                                                    if counter <= max(current_model.get_lags())*2 else list(ts),
+                                                    if counter < max(current_model.get_lags()) else list(ts),
                                                     armagarch_lib)
-        # TODO: IMP CHECK IF ELSE ABOVE, AS IT LOOKS LIKE IT ENTERS EXTRA 2 TIMES...
         new_switch_type = starts_switch(tool_params['switching_probability'], tool_params['abrupt_drift_prob'])
 
         # 2 In case of switch, select a new model and reset weights: (1.0, 0.0) at the start (no changes) by default.
@@ -268,7 +267,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
             switch_type = new_switch_type
             new_model = models[f'{MODEL_DICT_NAMES}{get_new_model(current_model.id, data_config["files"])}']
             w = update_weights(w=reset_weights(), switch_sharpness=switch_shp[switch_type.value])
-            # TODO: see why w does not change. does it reset or the issue is when updating?
+            sig_w = (1 - gutils.get_sigmoid()[int(w[0]*100)], gutils.get_sigmoid()[int(w[0]*100)])  # kernel to sig func
 
         # 3 Log switches and events
         rc.append({'n_row': counter, 'new_switch': new_switch_type.name,
@@ -282,19 +281,24 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
             print('Update weights:')
             # Forecast and expand current series (current model is the old one, this becomes current when weight == 1)
             new_model_forecast = new_model.forecast(list(new_model.input_ts)
-                                                    if counter <= max(new_model.get_lags()) * 2 else list(ts),
+                                                    if counter < max(new_model.get_lags()) else list(ts),
                                                     armagarch_lib)
+            ts.append(old_model_forecast * (sig_w[0] if tool_params['w_func'] == 'sig' else w[0]) +
+                      new_model_forecast * (sig_w[1] if tool_params['w_func'] == 'sig' else w[1]))
 
-            ts.append(old_model_forecast * w[0] + new_model_forecast * w[1])
             # TODO: TEST reconstruction once the rest works
-            # rec_ts.append(gutils.reconstruct(new_model_forecast, rec_value) * w[1] +
-            #               gutils.reconstruct(old_model_forecast, rec_value) * w[0])  # TODO: finish reconstruction
+            # rec_ts.append(gutils.reconstruct(new_model_forecast, rec_value) * (sig_w[1] if tool_params['w_func'] == 'sig' else w[1])+
+            #               gutils.reconstruct(old_model_forecast, rec_value) * (sig_w[0] if tool_params['w_func'] == 'sig' else w[0]))  # TODO: finish reconstruction
+
             w = update_weights(w, switch_shp[switch_type.value])
+            sig_w = (1 - gutils.get_sigmoid()[int(w[0]*100)], gutils.get_sigmoid()[int(w[0]*100)])  # kernel to sig func
+            print(sig_w)
 
             if w[1] == 1:
                 current_model = new_model
                 new_model = None
                 w = reset_weights()
+                sig_w = reset_weights()
                 switch_type = Switch.NONE
 
         # 3. Otherwise, use the current forecast
@@ -307,7 +311,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     # 4 Plot simulations
     if show_plt:
         gutils.plot_results(ts)
-    # non-reconstructed ts is not returned  # TODO
+
     return pd.Series(ts),  pd.DataFrame(rc)  # TODO return pd.Series(rec_ts), pd.DataFrame(rc)
 
 
@@ -329,8 +333,6 @@ def compute():
                              input_data_conf=input_data_config,
                              params=global_params, armagarch_lib=armagarch_lib, show_plt=plt_flag)
 
-    # TODO: print all info from each model to make sure that they're properly trained.
-
     # 3 Once the models are pre-train, these are used for simulating the final series.
     # At every switch, the model that generates the final time series will be different.
     ts, rc = switching_process(tool_params=global_params, models=models_dict,
@@ -349,7 +351,7 @@ def compute():
     rc['ts'] = ts
     rc['ts_n1'] = ts_gn  # Gaussian noise
     rc['ts_n2'] = ts_snr  # SNR and White Gaussian Noise
-    rc[output_format['cols']].to_csv(os.sep.join([output_format['path'], output_format['ts_name']]))
+    rc[output_format['cols']].to_csv(os.sep.join([output_format['path'], output_format['ts_name']]), index=False)
 
 
 if __name__ == '__main__':

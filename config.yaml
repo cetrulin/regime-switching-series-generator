@@ -2,9 +2,10 @@ params:
   periods: 100  # number of rows of the time series to be generated
   switching_probability: 0.05 #0.05
   abrupt_drift_prob: 0.25
-  gradual_drift_sharpness: 1   # number from 1 to 10 (10 is an instant switch)
-  abrupt_drift_sharpness: 7
+  gradual_drift_sharpness: 0.10   # number from 1 to 10 (10 is an instant switch)
+  abrupt_drift_sharpness: 0.70
   white_noise_level: 0.05  # weight of white noise (WN) in the generated TS as a %. 0 = no WN. # 100 only produces WN
+  w_func: 'sig'  # function to change weights (sig:sigmoid or linear)
   pq_rng: 5
   d_rng: 1   # [0] # we'll use arma-garch, so not d (= 0)
 
@@ -24,9 +25,9 @@ input:  # model-related
   parsing_mode: 'returns'  # or 'prices'
 
 output:
-  path: 'C:\Users\suare\OneDrive\Escritorio'
+  path: '.\\output'
   ts_name: 'timeseries_created_1.csv'
-  cols: ['cur_switch', 'current_model_id', 'n_row', 'new_model_id', 'new_switch', 'weights', 'ts', 'ts_n1', 'ts_n2']
+  cols: [ 'n_row', 'new_switch', 'cur_switch', 'current_model_id', 'new_model_id', 'weights', 'ts', 'ts_n1', 'ts_n2']
 
 plot: False  # plot TS?
 
