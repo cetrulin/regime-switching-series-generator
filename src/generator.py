@@ -22,6 +22,7 @@ class Switch(Enum):
     NONE = -1
     GRADUAL = 0
     ABRUPT = 1
+    PREDEFINED = 2
 
 
 def parse_yaml():
@@ -126,8 +127,8 @@ def fit_model(show_plt: bool, params: dict(), armagarch_lib: dict(), series_mode
     logging.info(f'\n\n 1. Setting ARMAGARCH library for model {current_model.id}')
 
     logging.info(f'\n\n 2. Start fitting process for {current_model.id}')
-    # _, ARMA_order, ARMA_model = get_best_arma_parameters(ts=list(current_model.input_ts), config=params)  #
-    ARMA_order = (4, 0, 4)
+    _, ARMA_order, ARMA_model = get_best_arma_parameters(ts=list(current_model.input_ts), config=params)  #
+    # ARMA_order = (4, 0, 4)
 
     # TODO: maybe this should get the best ARMAGARCH instead. (add option in YAML to pick get_param method)
     # then add if else to pick best arma or better armagarch params (for the second check why I did the last thing - only arma).
@@ -191,7 +192,17 @@ def reset_weights():
     return w
 
 
-def starts_switch(switch_prob: float, abrupt_prob: float):
+def get_event_dict(counter, current_model, new_model, new_switch_type, switch_type, tool_params, w):
+    return {'n_row': counter,
+            'new_switch': new_switch_type.name,
+            'cur_switch': switch_type.name if switch_type.name != 'PREDEFINED'
+            else '_'.join([switch_type.name, str(int(100/(tool_params['defined_drift_sharpness']*100)) - 1)]),
+            'weights': w,
+            'current_model_id': current_model.id,  # Add p,o,q to this?
+            'new_model_id': -1 if new_model is None else new_model.id}
+
+
+def random_switch(switch_prob: float, abrupt_prob: float):
     """
     This function flips coins and return if a drift should be triggered and its type.
     :param switch_prob
@@ -207,6 +218,35 @@ def starts_switch(switch_prob: float, abrupt_prob: float):
     else:
         # Otherwise
         return Switch.NONE
+
+
+def start_switch(counter, conf):
+    """
+    This function manages the decision of switching from one model to another.
+    """
+    conf['defined_drift_sharpness'] = None
+
+    if conf['use_transition_map']:
+        # Set no-switch by default
+        switch_shp = (conf['gradual_drift_sharpness'], conf['abrupt_drift_sharpness'], conf['defined_drift_sharpness'])
+        new_switch_type, switch_shp, conf = Switch.NONE, switch_shp, conf
+
+        for (it, length) in conf['transition_map']:
+            if counter == it:
+                new_switch_type = Switch.PREDEFINED
+                conf['defined_drift_sharpness'] = 100.0 / float(length + 1) / 100.0
+                switch_shp = (conf['gradual_drift_sharpness'], conf['abrupt_drift_sharpness'],
+                              conf['defined_drift_sharpness'])
+                return new_switch_type, switch_shp, conf
+
+            elif counter < it:
+                return new_switch_type, switch_shp, conf
+    else:
+        # No new switch if there is one already in progress
+        new_switch_type = random_switch(conf['switching_probability'], conf['abrupt_drift_prob'])
+
+    switch_shp = [conf['gradual_drift_sharpness'], conf['abrupt_drift_sharpness'], conf['defined_drift_sharpness']]
+    return new_switch_type, switch_shp, conf
 
 
 def get_new_model(current_id: int, config: dict()):
@@ -236,8 +276,9 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     :rerurn: rc - dataframe of events (switches flagged, models used and weights)
     """
     # Init params
-    switch_shp = (tool_params['gradual_drift_sharpness'], tool_params['abrupt_drift_sharpness'])
     switch_type = Switch.NONE
+    no_switch = Switch.NONE, None, tool_params
+    use_sig_w = tool_params['w_func'] == 'sig'
 
     # Start with model A as initial model
     current_model = models[f'{MODEL_DICT_NAMES}{1}']  # first model -> current_model = A (randomly chosen)
@@ -249,40 +290,39 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     w = reset_weights()  # tuple (current, new) of model weights.
     sig_w = reset_weights()
     state_counter = 0
+    # tool_params['transition_map']
     logging.info('Start of the context-switching generative process:')
-    for counter in range(tool_params['periods']):
+    for it_counter in range(tool_params['periods']):
         # 1 Start forecasting in 1 step horizons using the current model
         old_model_forecast = current_model.forecast(list(current_model.input_ts)
-                                                    if counter < max(current_model.get_lags()) else list(ts),
+                                                    if it_counter < max(current_model.get_lags()) else list(ts),
                                                     armagarch_lib)
-        # No new switch if there is one already in progress
-        new_switch_type = Switch.NONE if (0 < w[1] < 1 or state_counter <= tool_params['min_model_len']) \
-            else starts_switch(tool_params['switching_probability'], tool_params['abrupt_drift_prob'])
+        new_switch_type, new_switch_shp, tool_params = no_switch \
+            if (0 < w[1] < 1 or state_counter <= tool_params['min_model_len']) \
+            else start_switch(it_counter, tool_params)
 
         # 2 In case of switch, select a new model and reset weights: (1.0, 0.0) at the start (no changes) by default.
         if new_switch_type.value >= 0:
             logging.info(f'There is a {new_switch_type.name} switch.')
-            switch_type = new_switch_type
+            switch_type, switch_shp = new_switch_type, new_switch_shp
             new_model = models[f'{MODEL_DICT_NAMES}{get_new_model(current_model.id, data_config["files"])}']
             w = update_weights(w=reset_weights(), switch_sharpness=switch_shp[switch_type.value])
             sig_w = (gutils.get_sigmoid()[int(w[0]*100)], 1 - gutils.get_sigmoid()[int(w[0]*100)])  # kernel to sig func
 
         # 3 Log switches and events
-        rc.append({'n_row': counter, 'new_switch': new_switch_type.name,
-                   'cur_switch': switch_type.name, 'weights': w,
-                   'current_model_id': current_model.id,   # Add p,o,q to this?
-                   'new_model_id': -1 if new_model is None else new_model.id})
-        assert w[0] + w[1] == 1
+        rc.append(get_event_dict(it_counter, current_model, new_model, new_switch_type, switch_type, tool_params,
+                                 sig_w if use_sig_w else w))
+        assert (sig_w[0] + sig_w[1] if use_sig_w else w[0] + w[1]) == 1
 
         # 4 if it's switching (started now or in other iteration), then forecast with new model and get weighted average
         if 0 < w[1] < 1:
             print('Update weights:')
             # Forecast and expand current series (current model is the old one, this becomes current when weight == 1)
             new_model_forecast = new_model.forecast(list(new_model.input_ts)
-                                                    if counter < max(new_model.get_lags()) else list(ts),
+                                                    if it_counter < max(new_model.get_lags()) else list(ts),
                                                     armagarch_lib)
-            ts.append(old_model_forecast * (sig_w[0] if tool_params['w_func'] == 'sig' else w[0]) +
-                      new_model_forecast * (sig_w[1] if tool_params['w_func'] == 'sig' else w[1]))
+            ts.append(old_model_forecast * (sig_w[0] if use_sig_w else w[0]) +
+                      new_model_forecast * (sig_w[1] if use_sig_w else w[1]))
 
             w = update_weights(w, switch_shp[switch_type.value])
             sig_w = (gutils.get_sigmoid()[int(w[0]*100)], 1 - gutils.get_sigmoid()[int(w[0]*100)])  # kernel to sig func
@@ -300,8 +340,8 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         else:
             ts.append(old_model_forecast)
 
-        state_counter = state_counter+1
-        logging.info(f'Period {counter}: {ts}')
+        state_counter = state_counter + 1
+        logging.info(f'Period {it_counter}: {ts}')
 
     # 4 Plot simulations
     if show_plt:

@@ -9,6 +9,8 @@ params:
   w_func: 'sig'  # function to change weights (sig:sigmoid or linear)
   pq_rng: 5
   d_rng: 1   # [0] # we'll use arma-garch, so not d (= 0)
+  use_transition_map: True  # If True, switches will be pre-defined by the map below
+  transition_map: [[10, 2], [30, 7], [50, 4]]  # iteration of switch (in ASC order), and duration of switch as a number of iterations
 
 input:  # model-related
   path: 'C:\\Users\\suare\\MEGA\\PhD\\1 Code and data\\data\\'
