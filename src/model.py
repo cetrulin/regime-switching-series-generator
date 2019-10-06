@@ -16,6 +16,7 @@ class Model:
     id: int
     raw_input_path: float
     input_ts: pd.Series()
+    rec_price: float  # init price for reconstruction from returns
     probability: float
 
     # Define fitted params

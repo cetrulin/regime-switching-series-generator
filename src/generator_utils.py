@@ -94,20 +94,15 @@ def get_sigmoid():
     return sigmoid(x)
 
 
-def reconstruct(new_model_forecast: float, init_value: float):
+def reconstruct(ts: float, init_val: float):
     """
     This function reconstructs the initial series, as the models are trained with returns/deltas in log scale.
     :param new_model_forecast - forecast as a return and in log scale
     :param init_value - initial value of the current series for the reconstruction
     :return: forecast reconstructed.
     """
-    # TODO: reconstruction of price? talk to David.
-    # TODO: Test this properly.
-    #  It may be the case that we need to add as first row the last price of the series that
-    #   belongs to the current series (or the model being used) so we do the cumsum.
-    #   Here it does not apply as there is only one row, but I'm not sure if it's implemented correctly.
-    # reconstructing forecasting (rec[rec_col_name].values[-TIME_HORIZON])
-    return init_value * np.exp(new_model_forecast[TIME_HORIZON - 1] * -1)
+    # return init_value * np.exp(ts[TIME_HORIZON - 1] * -1)
+    return init_val * np.exp(np.cumsum(ts * -1))
 
 
 def add_noise(noise_level: float, ts: list()):

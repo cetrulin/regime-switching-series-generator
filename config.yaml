@@ -1,6 +1,7 @@
 params:
   periods: 100  # number of rows of the time series to be generated
-  switching_probability: 0.05 #0.05
+  switching_probability: 0.75 #0.05
+  min_model_len: 1  # A model should be used at least during this number of iterations
   abrupt_drift_prob: 0.25
   gradual_drift_sharpness: 0.10   # number from 1 to 10 (10 is an instant switch)
   abrupt_drift_sharpness: 0.70
@@ -27,7 +28,8 @@ input:  # model-related
 output:
   path: '.\\output'
   ts_name: 'timeseries_created_1.csv'
-  cols: [ 'n_row', 'new_switch', 'cur_switch', 'current_model_id', 'new_model_id', 'weights', 'ts', 'ts_n1', 'ts_n2']
+  cols: [ 'n_row', 'new_switch', 'cur_switch', 'current_model_id', 'new_model_id', 'weights',
+          'ts', 'ret_ts', 'ts_n1_pre', 'ts_n2_pre', 'ts_n1_post', 'ts_n2_post']
 
 plot: False  # plot TS?
 

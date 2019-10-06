@@ -67,6 +67,7 @@ def instantiate_model(config, show_plt, file_config):
     # 3. Prepare Model and return it to be added to a dictionary
     return Model(id=counter, raw_input_path=os.path.join(config['path'], file),
                  input_ts=gutils.prepare_raw_series(config['parsing_mode'], raw_series),
+                 rec_price=list(raw_series[config['sim_col']])[-1],  # last fitting price will be used for reconstruction
                  probability=prob),  f'{MODEL_DICT_NAMES}{counter}'
 
 
@@ -125,7 +126,7 @@ def fit_model(show_plt: bool, params: dict(), armagarch_lib: dict(), series_mode
     logging.info(f'\n\n 1. Setting ARMAGARCH library for model {current_model.id}')
 
     logging.info(f'\n\n 2. Start fitting process for {current_model.id}')
-    _, ARMA_order, ARMA_model = get_best_arma_parameters(ts=list(current_model.input_ts), config=params)  #
+    # _, ARMA_order, ARMA_model = get_best_arma_parameters(ts=list(current_model.input_ts), config=params)  #
     ARMA_order = (4, 0, 4)
 
     # TODO: maybe this should get the best ARMAGARCH instead. (add option in YAML to pick get_param method)
@@ -247,13 +248,16 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     rc = list()
     w = reset_weights()  # tuple (current, new) of model weights.
     sig_w = reset_weights()
+    state_counter = 0
     logging.info('Start of the context-switching generative process:')
     for counter in range(tool_params['periods']):
         # 1 Start forecasting in 1 step horizons using the current model
         old_model_forecast = current_model.forecast(list(current_model.input_ts)
                                                     if counter < max(current_model.get_lags()) else list(ts),
                                                     armagarch_lib)
-        new_switch_type = starts_switch(tool_params['switching_probability'], tool_params['abrupt_drift_prob'])
+        # No new switch if there is one already in progress
+        new_switch_type = Switch.NONE if (0 < w[1] < 1 or state_counter <= tool_params['min_model_len']) \
+            else starts_switch(tool_params['switching_probability'], tool_params['abrupt_drift_prob'])
 
         # 2 In case of switch, select a new model and reset weights: (1.0, 0.0) at the start (no changes) by default.
         if new_switch_type.value >= 0:
@@ -261,7 +265,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
             switch_type = new_switch_type
             new_model = models[f'{MODEL_DICT_NAMES}{get_new_model(current_model.id, data_config["files"])}']
             w = update_weights(w=reset_weights(), switch_sharpness=switch_shp[switch_type.value])
-            sig_w = (1 - gutils.get_sigmoid()[int(w[0]*100)], gutils.get_sigmoid()[int(w[0]*100)])  # kernel to sig func
+            sig_w = (gutils.get_sigmoid()[int(w[0]*100)], 1 - gutils.get_sigmoid()[int(w[0]*100)])  # kernel to sig func
 
         # 3 Log switches and events
         rc.append({'n_row': counter, 'new_switch': new_switch_type.name,
@@ -279,16 +283,15 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
                                                     armagarch_lib)
             ts.append(old_model_forecast * (sig_w[0] if tool_params['w_func'] == 'sig' else w[0]) +
                       new_model_forecast * (sig_w[1] if tool_params['w_func'] == 'sig' else w[1]))
-            # rec_ts.append(gutils.reconstruct(new_model_forecast, rec_value) * (sig_w[1] if tool_params['w_func'] == 'sig' else w[1])+
-            #               gutils.reconstruct(old_model_forecast, rec_value) * (sig_w[0] if tool_params['w_func'] == 'sig' else w[0]))   # old reconstruction
 
             w = update_weights(w, switch_shp[switch_type.value])
-            sig_w = (1 - gutils.get_sigmoid()[int(w[0]*100)], gutils.get_sigmoid()[int(w[0]*100)])  # kernel to sig func
+            sig_w = (gutils.get_sigmoid()[int(w[0]*100)], 1 - gutils.get_sigmoid()[int(w[0]*100)])  # kernel to sig func
             print(sig_w)
 
             if w[1] == 1:
                 current_model = new_model
                 new_model = None
+                state_counter = 0  # reset of counter for duration of model
                 w = reset_weights()
                 sig_w = reset_weights()
                 switch_type = Switch.NONE
@@ -296,15 +299,47 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         # 3. Otherwise, use the current forecast
         else:
             ts.append(old_model_forecast)
-            # rec_ts.append(gutils.reconstruct(old_model_forecast, rec_value))  # old reconstruction
 
+        state_counter = state_counter+1
         logging.info(f'Period {counter}: {ts}')
 
     # 4 Plot simulations
     if show_plt:
         gutils.plot_results(ts)
 
-    return pd.Series(ts),  pd.DataFrame(rc)  # return pd.Series(rec_ts), pd.DataFrame(rc)
+    return pd.Series(ts),  pd.DataFrame(rc)
+
+
+def prepare_and_export(global_params, output_format, rc, ts, reconstruction_price):
+    """
+    This function reconstruct prices, adds noise and and exports a csv
+    :param global_params: config params
+    :param output_format: info about file to be exported
+    :param rc: registered events
+    :param ts: time series generated
+    :param reconstruction_price: price for reconstruction
+    :return:
+    """
+    logging.info('Reconstructing prices and adding noise...')
+    rc['ret_ts'] = ts
+
+    # 5.1 noise over returns
+    ts_gn, ts_snr = gutils.add_noise(global_params['white_noise_level'], list(rc['ret_ts']))
+
+    # 5.2 reconstruction
+    rc['ts'] = gutils.reconstruct(ts, init_val=reconstruction_price)
+    # Gaussian noise & reconstruct
+    rc['ts_n1_pre'] = gutils.reconstruct(ts_gn, init_val=reconstruction_price)
+    # SNR and White Gaussian Noise & reconstruct
+    rc['ts_n2_pre'] = gutils.reconstruct(ts_snr, init_val=reconstruction_price)
+
+    # 5.3 noise post-reconstruction (over prices)
+    ts_gn, ts_snr = gutils.add_noise(global_params['white_noise_level'], list(rc['ts']))
+    rc['ts_n1_post'] = ts_gn  # Gaussian noise
+    rc['ts_n2_post'] = ts_snr  # SNR and White Gaussian Noise
+
+    # 6 Final simulation (TS created) and a log of the regime changes (RC) to CSV files
+    rc[output_format['cols']].to_csv(os.sep.join([output_format['path'], output_format['ts_name']]), index=False)
 
 
 def compute():
@@ -329,21 +364,15 @@ def compute():
     # At every switch, the model that generates the final time series will be different.
     ts, rc = switching_process(tool_params=global_params, models=models_dict,
                                data_config=input_data_config, armagarch_lib=armagarch_lib, show_plt=plt_flag)
-    # rec_ts = gutils.reconstruct(ts)  # TODO: reconstruction at this level? from which prices? talk to David
 
     # 4 Plot simulations
     if plt_flag:
         gutils.plot_results(ts)
 
-    # 5 Add noise (gaussian noise and SNR)
-    logging.info('Adding noise...')
-    ts_gn, ts_snr = gutils.add_noise(global_params['white_noise_level'], list(ts))
-
-    # 6 Final simulation (TS created) and a log of the regime changes (RC) to CSV files
-    rc['ts'] = ts  # rc['rec_ts'] = rec_ts
-    rc['ts_n1'] = ts_gn  # Gaussian noise
-    rc['ts_n2'] = ts_snr  # SNR and White Gaussian Noise
-    rc[output_format['cols']].to_csv(os.sep.join([output_format['path'], output_format['ts_name']]), index=False)
+    # 5 Add noise (gaussian noise and SNR) pre-reconstruction, reconstruct prices and add noise post-reconstruction
+    # 6 and export
+    prepare_and_export(global_params, output_format, rc, ts,
+                       reconstruction_price=models_dict['fitted_1'].rec_price)
 
 
 if __name__ == '__main__':
