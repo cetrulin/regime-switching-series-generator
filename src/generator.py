@@ -114,10 +114,10 @@ def get_best_arma_parameters(ts: list(), config: dict()):
     return best_aic, best_order, best_mdl
 
 
-def fit_model(show_plt: bool, params: dict(), armagarch_lib: dict(), series_model):
+def fit_model(show_plt: bool, tool_params: dict(), armagarch_lib: dict(), series_model):
     """
     This handles each thread in 'fit_models'
-    :param params: YAML dict with model params
+    :param tool_params: YAML dict with model params
     :param armagarch_lib: library name and environment paths to load an R library for ARMA-GARCH
     :param show_plt: plot series?
     :param series_model: list of series as an object of Model.
@@ -125,24 +125,37 @@ def fit_model(show_plt: bool, params: dict(), armagarch_lib: dict(), series_mode
     """
     name_series, current_model = series_model
     logging.info(f'\n\n 1. Setting ARMAGARCH library for model {current_model.id}')
+    if tool_params['param_search'] == 'ARMA':
+        _, ARMA_order, ARMA_model = get_best_arma_parameters(ts=list(current_model.input_ts), config=tool_params)  #
+        # ARMA_order = (4, 0, 4)
+        print(current_model.id)
+        print('Best parameters are: ')
+        current_model.set_lags(ARMA_order[0], ARMA_order[1], ARMA_order[2])
+        print(f'{current_model.get_lags()}')
 
-    logging.info(f'\n\n 2. Start fitting process for {current_model.id}')
-    _, ARMA_order, ARMA_model = get_best_arma_parameters(ts=list(current_model.input_ts), config=params)  #
-    # ARMA_order = (4, 0, 4)
+        if show_plt:
+            gutils.tsplot(ARMA_order.resid, lags=30)
+            gutils.tsplot(ARMA_order.resid ** 2, lags=30)
 
-    # TODO: maybe this should get the best ARMAGARCH instead. (add option in YAML to pick get_param method)
-    # then add if else to pick best arma or better armagarch params (for the second check why I did the last thing - only arma).
-    print(current_model.id)
-    print('Best parameters are: ')
-    current_model.set_lags(ARMA_order[0], ARMA_order[1], ARMA_order[2])
-    print(f'{current_model.get_lags()}')
+        logging.info(f'\n\n 2. Start fitting process for {current_model.id}')
 
-    if show_plt:
-        gutils.tsplot(ARMA_order.resid, lags=30)
-        gutils.tsplot(ARMA_order.resid ** 2, lags=30)
+        # Now we can fit the arch model using the best fit ARIMA model parameters. 'o' not in ARMAGARCH
+        current_model.fit(current_model.input_ts, armagarch_lib, current_model.p, current_model.q)
 
-    # Now we can fit the arch model using the best fit ARIMA model parameters
-    current_model.fit(current_model.input_ts, current_model.p, current_model.q, armagarch_lib)  # 'o' not in ARMAGARCH
+    elif tool_params['param_search'] == 'ARMA_GARCH':
+        best_aic, best_order, _ = current_model.get_best(current_model.input_ts, tool_params, armagarch_lib)
+        print(best_aic)  # this tell us how well does the model fit
+        # best_order = (4, 0, 4, 1, 1)
+        current_model.set_lags(best_order[0], best_order[1], best_order[2],
+                               best_order[3], best_order[4])
+
+        # Now we can fit the arch model using the best fit ARIMA model parameters. 'o' not in ARMAGARCH
+        current_model.fit(current_model.input_ts, armagarch_lib,
+                          current_model.p, current_model.q, current_model.g_p, current_model.g_q)
+
+    else:
+        logging.critical('param_search must be provided in config.yaml. Values should be "ARMA" or "ARMA_GARCH"\n\n')
+
     return current_model, name_series  # name_series = f'{MODEL_DICT_NAMES}{counter}'
 
 
@@ -258,6 +271,7 @@ def get_new_model(current_id: int, config: dict()):
     """
     # NOT TO BE DEVELOPED (YET)
     # Just here in the case of having different probabilities of transitioning per series.
+    # for i in range(len(config)):
     # for i in range(len(config)):
     #     config[i][1]  # TOD: ENUMERATOR SO TRANSITION_PROBABILITIES_POS == 1
     new_model_id = random.randrange(1, len(config)+1)

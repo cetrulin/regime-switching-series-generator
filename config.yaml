@@ -7,8 +7,10 @@ params:
   abrupt_drift_sharpness: 0.70
   white_noise_level: 0.05  # weight of white noise (WN) in the generated TS as a %. 0 = no WN. # 100 only produces WN
   w_func: 'sig'  # function to change weights (sig:sigmoid or linear)
-  pq_rng: 5
-  d_rng: 1   # [0] # we'll use arma-garch, so not d (= 0)
+  param_search: 'ARMA_GARCH'  # Search of lag values focuses on model: 'ARMA', 'ARMA_GARCH'
+  pq_rng: 5  # ARMA lag order range
+  d_rng: 1   # [0] # we'll use arma-garch, so not d (= 0) - just for ARIMA
+  garch_pq_rng: 5  # GARCH lag order range
   use_transition_map: True  # If True, switches will be pre-defined by the map below
   transition_map: [[10, 2], [30, 7], [50, 4]]  # iteration of switch (in ASC order), and duration of switch as a number of iterations
 
