@@ -1,0 +1,36 @@
+TEST 1: False - The amount of records is correct?Approx mins of market should be: 5896800.0 and actual number is: 1594295
+TO-DO: Improve this test to be more acccurate.
+TEST 2: False - Is the dataset complete? (no gaps at minute level).  18 gaps.
+The max number of consecutive gaps at this level and this period is: 7 gaps.
+A sample of the distribution of these consecutive gaps, sorted by descending order is: 
+close
+6678    7
+6172    4
+6171    3
+6174    2
+6677    1
+6676    1
+2273    0
+2272    0
+2253    0
+2274    0
+2254    0
+2255    0
+2256    0
+2257    0
+2258    0
+2259    0
+2260    0
+2261    0
+2262    0
+2263    0
+2252    0
+2265    0
+2266    0
+2267    0
+2268    0
+Name: close, dtype: int32TEST 3: False - Are the resampled (at second level) and the original dataset of the same size? (so # rows is ok)
+original_plus_gaps is:1594313 and resampled is: 408240. If resampled is greater, it means gaps at second level (that may not be material at minute level).
+TEST 4: True - Is the dataset free from any duplicates?
+TEST 5: Number of market days (it should be an average of 251 market days a year +/-1 normally). # days is:252
+If any test fails, run quality checks.

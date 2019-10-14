@@ -1,0 +1,1 @@
+Binary Label: 0=remains or decreases / 1=increases0 in 73.77888793266304%1 in 26.221112067336957%---NON-GAP in T+1: Percentage of records that don't occur before a gap splitted by label0 in 25.811371917634098%1 in 35.285145326667234%2 in 0.0% GAP in T+1: Percentage of records that occur before a gap splitted by label0 in 38.90348275569867%1 in 0.0%2 in 0.0%
