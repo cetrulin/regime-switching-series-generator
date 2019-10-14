@@ -1,5 +1,5 @@
 params:
-  periods: 100  # number of rows of the time series to be generated
+  periods: 5000  # number of rows of the time series to be generated
   switching_probability: 0.75 #0.05
   min_model_len: 1  # A model should be used at least during this number of iterations
   abrupt_drift_prob: 0.25
@@ -8,25 +8,29 @@ params:
   white_noise_level: 0.05  # weight of white noise (WN) in the generated TS as a %. 0 = no WN. # 100 only produces WN
   w_func: 'sig'  # function to change weights (sig:sigmoid or linear)
   param_search: 'ARMA_GARCH'  # Search of lag values focuses on model: 'ARMA', 'ARMA_GARCH'
-  pq_rng: 5  # ARMA lag order range
+  pq_rng: 10  # ARMA lag order range
   d_rng: 1   # [0] # we'll use arma-garch, so not d (= 0) - just for ARIMA
-  garch_pq_rng: 5  # GARCH lag order range
+  garch_pq_rng: 10  # GARCH lag order range
   use_transition_map: True  # If True, switches will be pre-defined by the map below
-  transition_map: [[10, 2], [30, 7], [50, 4]]  # iteration of switch (in ASC order), and duration of switch as a number of iterations
+  transition_map: [[300, 2], [550, 20], [2200, 4], [3500,2], [3800,60], [4400,10]]  # iteration of switch (in ASC order), and duration of switch as a number of iterations
 
 input:  # model-related
-  path: 'C:\\Users\\suare\\MEGA\\PhD\\1 Code and data\\data\\'
+  path: '.\\data\\'  # C:\\Users\\suare\\MEGA\\PhD\\1 Code and data
   files:  # series for the pre-training of the models (each model will be pre-trained with one)
-    - [1, 'raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', 0.25]
-    - [2, 'raw\\quantquote\\one_second_level\\242321_csv\\20170717/spy.csv', 0.25]
-    - [3, 'raw\\quantquote\\one_second_level\\242321_csv\\20160914/spy.csv', 0.25]
+    - [1, 'aapl\\APPLE_[2018-08-01_to_2018-09-11]_5min.csv', 0.25]  # aug 2018 only # TODO add best o,p,q,.. config
+    - [2, 'btc\\BITCOIN_[2019-07-01_to_2019-08-01]_5min.csv', 0.25]  # july 2019 only
+    - [3, 'efts\\5min-level\\IBEX\\IBEX_[2015-11-01_to_2015-11-30].csv', 0.25]  # nov 2015 only
+    - [4, 'efts\\5min-level\\DOWJONES\\DOWJONES_[2015-08-01_to_2015-08-31].csv', 0.25]  # aug 2015 only
+#    - [1, 'raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', 0.25]
+#    - [2, 'raw\\quantquote\\one_second_level\\242321_csv\\20170717/spy.csv', 0.25]
+#    - [3, 'raw\\quantquote\\one_second_level\\242321_csv\\20160914/spy.csv', 0.25]
 #    - [4, 'raw\\quantquote\\one_second_level\\242321_csv\\20170914/spy.csv', 0.25]
 #    - [5, 'raw\\quantquote\\one_second_level\\242321_csv\\20170314/spy.csv', 0.25]
 #    - [6, 'raw\\quantquote\\one_second_level\\242321_csv\\20160314/spy.csv', 0.25]
 #    - [7, 'raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', 0.25]
-  cols: ['Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Suspicious']
-  sim_col: 'Close'
-  index_col: 'Time'
+#  cols: ['Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Suspicious']
+  sim_col: 'close'
+  index_col: 'datetime' # 'Time'
   parsing_mode: 'returns'  # or 'prices'
 
 output:

@@ -50,8 +50,8 @@ def instantiate_model(config, show_plt, file_config):
     """
     # 1. Read dataset for model
     counter, file, prob = file_config
-    df = pd.read_csv(os.path.join(config['path'], file), header=None)
-    df.columns = config['cols']
+    df = pd.read_csv(os.path.join(config['path'], file), sep=';')  # , header=None)
+    # df.columns = config['cols']
     df.set_index(keys=config['index_col'], drop=True, inplace=True)
 
     # 2. Clean nulls and select series
@@ -145,7 +145,7 @@ def fit_model(show_plt: bool, tool_params: dict(), armagarch_lib: dict(), series
     elif tool_params['param_search'] == 'ARMA_GARCH':
         best_aic, best_order, _ = current_model.get_best(current_model.input_ts, tool_params, armagarch_lib)
         print(best_aic)  # this tell us how well does the model fit
-        # best_order = (4, 0, 4, 1, 1)
+        # best_order = (4, 0, 4, 1, 1)  # TODO: make it to use orders(add best conf after prob per model in config.yaml)
         current_model.set_lags(best_order[0], best_order[1], best_order[2],
                                best_order[3], best_order[4])
 
