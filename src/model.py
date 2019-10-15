@@ -90,10 +90,12 @@ class Model:
         best_order = None
         best_mdl = None
 
-        for i in range(conf['pq_rng']):
-            for j in range(conf['pq_rng']):
-                for k in range(conf['garch_pq_rng']):
-                    for h in range(conf['garch_pq_rng']):
+        # TODO: use autoarfima: https://rdrr.io/rforge/rugarch/man/autoarfima.html (compare against this in speed)
+        for i in range(1, conf['pq_rng'] + 1):  # TODO: replace this with iterator and parallelize here instead
+            print(f'p:{i}')  # TODO: comment out
+            for j in range(1, conf['pq_rng'] + 1):
+                for k in range(1, conf['garch_pq_rng'] + 1):
+                    for h in range(1, conf['garch_pq_rng'] + 1):
                         try:
                             # print(f'Trying params: {(i, 0, j, k, h)} on model {self.id}.')
                             # Initialize R GARCH model
@@ -119,14 +121,14 @@ class Model:
 
                             tmp_aic = self.get_infocrit(tmp_mdl)[0]  # [0 AIC, 1 BIC, 2 Shibata, 3 Hannan - Quinn ]
                             # print(f'AIC: {tmp_aic}\n')
-                            print(f'Trying params: {(i, 0, j, k, h)} on model {self.id}. AIC is: {tmp_aic}')
+                            # print(f'Trying params: {(i, 0, j, k, h)} on model {self.id}. AIC is: {tmp_aic}')
                             if tmp_aic < best_aic:
                                 best_aic = tmp_aic
                                 best_order = (i, 0, j, k, h)  # o = 0 in ARMAGARCH
                                 best_mdl = tmp_mdl
                         except:
                             continue
-        print('model {} -> aic: {:6.5f} | order: {}'.format(self.id, best_aic, best_order))
+        # print('model {} -> aic: {:6.5f} | order: {}'.format(self.id, best_aic, best_order))
         self.rugarch_lib_instance = None
         return best_aic, best_order, best_mdl
 

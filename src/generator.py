@@ -90,15 +90,17 @@ def instantiate_models(config: dict(), show_plt: bool = True):
 def get_best_arma_parameters(ts: list(), config: dict()):
     """
     If selected, this list returns the best ARMA model for the current pre-training period.
+    Cos and ARMA-GARCH(1,1) may be good enough:
+        https://stats.stackexchange.com/questions/175400/optimal-lag-order-selection-for-a-garch-model
     @:param TS: time series of returns used for pre-training
     """
     best_aic = np.inf
     best_order = None
     best_mdl = None
 
-    for i in range(config['pq_rng']):   # [0,1,2,3,4]
+    for i in range(1, config['pq_rng'] + 1):   # [0,1,2,3,4]
         for d in range(config['d_rng']):  # [0] # we'll use arma-garch, so not d (= 0)
-            for j in range(config['pq_rng']):
+            for j in range(1, config['pq_rng'] + 1):
                 try:
                     tmp_mdl = smt.ARIMA(ts, order=(i, d, j)).fit(
                         method='mle', trend='nc'
@@ -144,7 +146,8 @@ def fit_model(show_plt: bool, tool_params: dict(), armagarch_lib: dict(), series
 
     elif tool_params['param_search'] == 'ARMA_GARCH':
         best_aic, best_order, _ = current_model.get_best(current_model.input_ts, tool_params, armagarch_lib)
-        print(best_aic)  # this tell us how well does the model fit
+        logging.info('model {} -> aic: {:6.5f} | order: {}'.format(current_model.id, best_aic, best_order))
+
         # best_order = (4, 0, 4, 1, 1)  # TODO: make it to use orders(add best conf after prob per model in config.yaml)
         current_model.set_lags(best_order[0], best_order[1], best_order[2],
                                best_order[3], best_order[4])
@@ -330,7 +333,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
 
         # 4 if it's switching (started now or in other iteration), then forecast with new model and get weighted average
         if 0 < w[1] < 1:
-            print('Update weights:')
+            # print('Update weights:')
             # Forecast and expand current series (current model is the old one, this becomes current when weight == 1)
             new_model_forecast = new_model.forecast(list(new_model.input_ts)
                                                     if it_counter < max(new_model.get_lags()) else list(ts),
@@ -340,7 +343,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
 
             w = update_weights(w, switch_shp[switch_type.value])
             sig_w = (gutils.get_sigmoid()[int(w[0]*100)], 1 - gutils.get_sigmoid()[int(w[0]*100)])  # kernel to sig func
-            print(sig_w)
+            # print(sig_w)
 
             if w[1] == 1:
                 current_model = new_model
@@ -355,7 +358,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
             ts.append(old_model_forecast)
 
         state_counter = state_counter + 1
-        logging.info(f'Period {it_counter}: {ts}')
+        # logging.info(f'Period {it_counter}: {ts}')
 
     # 4 Plot simulations
     if show_plt:

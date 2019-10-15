@@ -8,11 +8,18 @@ params:
   white_noise_level: 0.05  # weight of white noise (WN) in the generated TS as a %. 0 = no WN. # 100 only produces WN
   w_func: 'sig'  # function to change weights (sig:sigmoid or linear)
   param_search: 'ARMA_GARCH'  # Search of lag values focuses on model: 'ARMA', 'ARMA_GARCH'
-  pq_rng: 10  # ARMA lag order range
+  pq_rng: 5  # ARMA lag order range
   d_rng: 1   # [0] # we'll use arma-garch, so not d (= 0) - just for ARIMA
-  garch_pq_rng: 10  # GARCH lag order range
+  garch_pq_rng: 5  # GARCH lag order range
   use_transition_map: True  # If True, switches will be pre-defined by the map below
   transition_map: [[300, 2], [550, 20], [2200, 4], [3500,2], [3800,60], [4400,10]]  # iteration of switch (in ASC order), and duration of switch as a number of iterations
+# model 1 -> aic: -11.04855 | order: (4, 0, 3, 1, 1)
+# model 3 -> aic: -6.42459 | order: (1, 0, 1, 1, 5)
+# model 4 -> aic: -9.59708 | order: (1, 0, 1, 1, 1)
+
+# ASC: un inconveniente que veo a ajustar funciones de este tipo a este tipo de datos es que realmente los modelos
+  # nunca van a ajustar bien, al ser datos donde esperamos tasas de prediccion de un 60% solo.
+# model 4 -> aic: -9.59773 | order: (0, 0, 1, 1, 1)
 
 input:  # model-related
   path: '.\\data\\'  # C:\\Users\\suare\\MEGA\\PhD\\1 Code and data
