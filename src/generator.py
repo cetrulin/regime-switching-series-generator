@@ -49,7 +49,7 @@ def instantiate_model(config, show_plt, file_config):
     :return: model and desc tuple
     """
     # 1. Read dataset for model
-    counter, file, prob = file_config
+    counter, file, preconf, prob = file_config
     df = pd.read_csv(os.path.join(config['path'], file), sep=';')  # , header=None)
     # df.columns = config['cols']
     df.set_index(keys=config['index_col'], drop=True, inplace=True)
@@ -69,7 +69,8 @@ def instantiate_model(config, show_plt, file_config):
     return Model(id=counter, raw_input_path=os.path.join(config['path'], file),
                  input_ts=gutils.prepare_raw_series(config['parsing_mode'], raw_series),
                  rec_price=list(raw_series[config['sim_col']])[-1],  # last fitting price will be used for reconstruction
-                 probability=prob),  f'{MODEL_DICT_NAMES}{counter}'
+                 probability=prob,
+                 ARMAGARCH_preconf=preconf),  f'{MODEL_DICT_NAMES}{counter}'
 
 
 def instantiate_models(config: dict(), show_plt: bool = True):
@@ -126,7 +127,7 @@ def fit_model(show_plt: bool, tool_params: dict(), armagarch_lib: dict(), series
     :return: fitted model and description to be added to dictionary
     """
     name_series, current_model = series_model
-    logging.info(f'\n\n 1. Setting ARMAGARCH library for model {current_model.id}')
+    # logging.info(f'\n\n 1. Setting ARMAGARCH library for model {current_model.id}')
     if tool_params['param_search'] == 'ARMA':
         _, ARMA_order, ARMA_model = get_best_arma_parameters(ts=list(current_model.input_ts), config=tool_params)  #
         # ARMA_order = (4, 0, 4)
@@ -145,17 +146,12 @@ def fit_model(show_plt: bool, tool_params: dict(), armagarch_lib: dict(), series
         current_model.fit(current_model.input_ts, armagarch_lib, current_model.p, current_model.q)
 
     elif tool_params['param_search'] == 'ARMA_GARCH':
-        best_aic, best_order, _ = current_model.get_best(current_model.input_ts, tool_params, armagarch_lib)
+        best_aic, best_order, best_model = current_model.get_best(current_model.input_ts, tool_params, armagarch_lib)
+        current_model.set_lags(*best_order)
+        current_model.set_spec_from_model(best_model)
+        # current_model.fit(current_model.input_ts, armagarch_lib,
+        #                   current_model.p, current_model.q, current_model.g_p, current_model.g_q)  # not needed
         logging.info('model {} -> aic: {:6.5f} | order: {}'.format(current_model.id, best_aic, best_order))
-
-        # best_order = (4, 0, 4, 1, 1)  # TODO: make it to use orders(add best conf after prob per model in config.yaml)
-        current_model.set_lags(best_order[0], best_order[1], best_order[2],
-                               best_order[3], best_order[4])
-
-        # Now we can fit the arch model using the best fit ARIMA model parameters. 'o' not in ARMAGARCH
-        current_model.fit(current_model.input_ts, armagarch_lib,
-                          current_model.p, current_model.q, current_model.g_p, current_model.g_q)
-
     else:
         logging.critical('param_search must be provided in config.yaml. Values should be "ARMA" or "ARMA_GARCH"\n\n')
 
