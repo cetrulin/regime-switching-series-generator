@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 import yaml
+import time
 import random
 from enum import Enum
 import statsmodels.tsa.api as smt
@@ -54,6 +55,10 @@ def instantiate_model(config, show_plt, file_config):
     # df.columns = config['cols']
     df.set_index(keys=config['index_col'], drop=True, inplace=True)
 
+    print('from here!!!')
+    print(df.head())
+    print(f'searching  {config["sim_col"]}')
+
     # 2. Clean nulls and select series
     raw_series = df[[config['sim_col']]]  # .dropna()
     raw_returns_series = 100 * df[[config['sim_col']]].pct_change()  # .dropna()
@@ -82,7 +87,7 @@ def instantiate_models(config: dict(), show_plt: bool = True):
     """
     # Load raw time series for the pre-training of the models
     logging.info('Load models...')
-    pool = multiprocessing.Pool(processes=len(config['files']))
+    pool = multiprocessing.Pool(len(config['files']))  # gutils.MyPool(1)
     mapped = pool.map(partial(instantiate_model, config, show_plt), config['files'])
     series_dict = dict(map(reversed, tuple(mapped)))
     return series_dict
@@ -172,7 +177,7 @@ def fit_models(series_dict: dict(), input_data_conf: dict(), params: dict(),
     """
     # Fit models in parallel
     logging.info('Fitting models...')
-    pool = multiprocessing.Pool(processes=len(input_data_conf['files']))
+    pool = gutils.MyPool(1)  # multiprocessing.Pool(processes=len(input_data_conf['files']))
     mapped = pool.map(partial(fit_model, show_plt, params, armagarch_lib), series_dict.items())
     return dict(map(reversed, tuple(mapped)))
 
@@ -392,7 +397,9 @@ def prepare_and_export(global_params, output_format, rc, ts, reconstruction_pric
     rc['ts_n2_post'] = ts_snr  # SNR and White Gaussian Noise
 
     # 6 Final simulation (TS created) and a log of the regime changes (RC) to CSV files
-    rc[output_format['cols']].to_csv(os.sep.join([output_format['path'], output_format['ts_name']]), index=False)
+    rc[output_format['cols']].to_csv(os.sep.join([output_format['path'],
+                                                  output_format['ts_name'] + str(int(time.time())) + '.csv']),
+                                     index=False)
 
 
 def compute():

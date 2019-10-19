@@ -5,6 +5,7 @@ import math
 import statsmodels.api as sm
 import statsmodels.tsa.api as smt
 import scipy.stats as scs
+import multiprocessing
 from sklearn.preprocessing import MinMaxScaler
 
 TIME_HORIZON = 1  # fixed / static TODO
@@ -126,4 +127,26 @@ def add_noise(noise_level: float, ts: list()):
 
     return ts_n1, ts_n2
 
+
+# Helper wrapper to create non-daemonic processes in the pool of parallel processes so these can still be split.
+class NoDaemonProcess(multiprocessing.Process):
+    @property
+    def daemon(self):
+        return False
+
+    @daemon.setter
+    def daemon(self, value):
+        pass
+
+
+class NoDaemonContext(type(multiprocessing.get_context())):
+    Process = NoDaemonProcess
+
+
+# We sub-class multiprocessing.pool.Pool instead of multiprocessing.Pool
+# because the latter is only a wrapper function, not a proper class.
+class MyPool(multiprocessing.pool.Pool):
+    def __init__(self, *args, **kwargs):
+        kwargs['context'] = NoDaemonContext()
+        super(MyPool, self).__init__(*args, **kwargs)
 

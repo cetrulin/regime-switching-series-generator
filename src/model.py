@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 import itertools
+import multiprocessing
+from functools import partial
 from dataclasses import dataclass
 
 # RPY packages to run rugarch in python
@@ -60,31 +62,35 @@ class Model:
         :return: trained/fitted model
         """
 
-        # Initialize R GARCH model
-        self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
-        spec = self.rugarch_lib_instance.ugarchspec(
-            mean_model=robjects.r(f'list(armaOrder=c({p_},{q_}), include.mean=T)'),
-            # Using student T distribution usually provides better fit
-            variance_model=robjects.r(f'list(garchOrder=c({garch_param1},{garch_param2}))'),
-            distribution_model='sged')  # 'std'
+        try:
+            # Initialize R GARCH model
+            self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
+            spec = self.rugarch_lib_instance.ugarchspec(
+                mean_model=robjects.r(f'list(armaOrder=c({p_},{q_}), include.mean=T)'),
+                # Using student T distribution usually provides better fit
+                variance_model=robjects.r(f'list(garchOrder=c({garch_param1},{garch_param2}))'),
+                distribution_model='sged')  # 'std'
 
-        # Train R GARCH model on returns as %
-        numpy2ri.activate()  # Used to convert training set to R list for model input
-        model = self.rugarch_lib_instance.ugarchfit(
-            spec=spec,
-            data=np.array(current_series),
-            out_sample=1  # remember: the 1st forecast should be reproducible in the reconst., as the real value exists
-        )
-        numpy2ri.deactivate()
-        # Checks
-        coef = model.slots['fit'].rx2('coef')  # this gives a vector of coefficients
-        # [mu, ar1, ar2, ar3, ar4, ma1, ma2, ma3, omega, alpha, beta, skw, shape]
-        omega, alpha, beta = coef[-5], coef[-4], coef[-3]
-        assert omega > 0 and alpha > 0 and beta > 0  # this ensures that the predicted variance > 0 at all times.
-        assert alpha + beta < 1  # this ensures that the predicted variance always returns to the long run variance
+            # Train R GARCH model on returns as %
+            numpy2ri.activate()  # Used to convert training set to R list for model input
+            model = self.rugarch_lib_instance.ugarchfit(
+                spec=spec,
+                data=np.array(current_series),
+                out_sample=1  # remember: the 1st forecast should be reproducible in the reconst., as the real value exists
+            )
+            numpy2ri.deactivate()
+            # Checks
+            coef = model.slots['fit'].rx2('coef')  # this gives a vector of coefficients
+            # [mu, ar1, ar2, ar3, ar4, ma1, ma2, ma3, omega, alpha, beta, skw, shape]
+            omega, alpha, beta = coef[-5], coef[-4], coef[-3]
+            assert omega > 0 and alpha > 0 and beta > 0  # this ensures that the predicted variance > 0 at all times.
+            assert alpha + beta < 1  # this ensures that the predicted variance always returns to the long run variance
 
-        self.ARMAGARCHspec = self.get_spec(model)
-        self.rugarch_lib_instance = None
+            self.ARMAGARCHspec = self.get_spec(model)
+            self.rugarch_lib_instance = None
+        except Exception:
+            print(f'Model{model} does not fit for the desired params.')
+
         return model
 
     def get_best(self, current_series, conf, lib_conf):
@@ -101,48 +107,70 @@ class Model:
             return 0.0, self.ARMAGARCH_preconf, self.fit(current_series, lib_conf,
                                                          p_=p, q_=q, garch_param1=p_g, garch_param2=q_g)
         else:
+            # Fitting in parallel according to the ARMA value 'p'.
+            pool = multiprocessing.Pool(processes=conf['pq_rng'])
+            mapped = pool.map(partial(self.try_model, conf, current_series, lib_conf), range(1, conf['pq_rng'] + 1))
+            best_models_dict = dict(map(reversed, tuple(mapped)))
+            best_aic, best_mdl, best_order = self.compute_intermediate_results(best_models_dict)
+            return best_aic, best_order, best_mdl
+
+    def compute_intermediate_results(self, best_models_dict):
+        """
+        This function gets the best model from the intermediate results (one thread per value of p in ARMA tried).
+        """
+        best_aic = np.inf
+        for i in best_models_dict.values():  # small loop to reduce results from map function
+            if i['aic'] < best_aic:  # This must be consistent with the same comparison in each thread
+                best_aic = i['aic']
+                best_order = i['order']
+                best_mdl = i['mdl']
+        return best_aic, best_mdl, best_order
+
+    def try_model(self, conf, current_series, lib_conf, i):
+        for j, k, h in itertools.product(range(1, conf['pq_rng'] + 1), \
+                                         range(1, conf['garch_pq_rng'] + 1), \
+                                         range(1, conf['garch_pq_rng'] + 1)):
             best_aic = np.inf
             best_order = None
             best_mdl = None
             self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
 
-            # TODO: parallelize this
-            for i, j, k, h in itertools.product(range(1, conf['pq_rng'] + 1), range(1, conf['pq_rng'] + 1),
-                                                range(1, conf['garch_pq_rng'] + 1), range(1, conf['garch_pq_rng'] + 1)):
-                try:
-                    # print(f'Trying params: {(i, 0, j, k, h)} on model {self.id}.')
-                    # Initialize R GARCH model
-                    spec = self.rugarch_lib_instance.ugarchspec(
-                        mean_model=robjects.r(f'list(armaOrder=c({i},{j}), include.mean=T)'),
-                        # Using student T distribution usually provides better fit
-                        variance_model=robjects.r(f'list(garchOrder=c({k},{h}))'),
-                        distribution_model='sged')  # 'std'
+            try:
+                # print(f'Trying params: {(i, 0, j, k, h)} on model {self.id}.')
+                # Initialize R GARCH model
+                spec = self.rugarch_lib_instance.ugarchspec(
+                    mean_model=robjects.r(f'list(armaOrder=c({i},{j}), include.mean=T)'),
+                    # Using student T distribution usually provides better fit
+                    variance_model=robjects.r(f'list(garchOrder=c({k},{h}))'),
+                    distribution_model='sged')  # 'std'
 
-                    # Train R GARCH model on returns as %
-                    numpy2ri.activate()  # Used to convert training set to R list for model input
-                    tmp_mdl = self.rugarch_lib_instance.ugarchfit(
-                        spec=spec,
-                        data=np.array(current_series),
-                        out_sample=1  # remember: the 1st forecast should be reproducible in the reconst.,
-                                      # as the real value exists
-                    )
-                    numpy2ri.deactivate()
-                    # Checks - see description of checks in fit function
-                    coef = tmp_mdl.slots['fit'].rx2('coef')
-                    omega, alpha, beta = coef[-5], coef[-4], coef[-3]
-                    assert omega > 0 and alpha > 0 and beta > 0 and alpha + beta < 1
+                # Train R GARCH model on returns as %
+                numpy2ri.activate()  # Used to convert training set to R list for model input
+                tmp_mdl = self.rugarch_lib_instance.ugarchfit(
+                    spec=spec,
+                    data=np.array(current_series),
+                    out_sample=1  # remember: the 1st forecast should be reproducible in the reconst.,
+                    # as the real value exists
+                )
+                numpy2ri.deactivate()
+                # Checks - see description of checks in fit function
+                coef = tmp_mdl.slots['fit'].rx2('coef')
+                omega, alpha, beta = coef[-5], coef[-4], coef[-3]
+                assert omega > 0 and alpha > 0 and beta > 0 and alpha + beta < 1
 
-                    tmp_aic = self.get_infocrit(tmp_mdl)[0]  # [0 AIC, 1 BIC, 2 Shibata, 3 Hannan - Quinn ]
-                    print(f'Trying params: {(i, 0, j, k, h)} on model {self.id}. AIC is: {tmp_aic}')
-                    if tmp_aic < best_aic:
-                        best_aic = tmp_aic
-                        best_order = (i, 0, j, k, h)  # o = 0 in ARMAGARCH
-                        best_mdl = tmp_mdl
-                except:
-                    continue
-            # print('model {} -> aic: {:6.5f} | order: {}'.format(self.id, best_aic, best_order))
-            self.rugarch_lib_instance = None
-            return best_aic, best_order, best_mdl
+                tmp_aic = self.get_infocrit(tmp_mdl)[0]  # [0 AIC, 1 BIC, 2 Shibata, 3 Hannan - Quinn ]
+                print(f'Trying params: {(i, 0, j, k, h)} on model {self.id}. AIC is: {tmp_aic}')
+                if tmp_aic < best_aic:
+                    best_aic = tmp_aic
+                    best_order = (i, 0, j, k, h)  # o = 0 in ARMAGARCH
+                    best_mdl = tmp_mdl
+
+            except Exception:
+                continue
+
+        print('model {} -> aic: {:6.5f} | order: {}'.format(self.id, best_aic, best_order))
+        self.rugarch_lib_instance = None
+        return {'aic': best_aic, 'mdl': best_mdl, 'order': best_order}, i
 
     def forecast(self, ts: list(), lib_conf):
         """

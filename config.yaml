@@ -1,5 +1,5 @@
 params:
-  periods: 5000  # number of rows of the time series to be generated
+  periods: 500  # number of rows of the time series to be generated
   switching_probability: 0.05 #0.05
   min_model_len: 1  # A model should be used at least during this number of iterations
   abrupt_drift_prob: 0.25
@@ -21,12 +21,14 @@ params:
 input:  # model-related
   path: '.\\data\\'  # C:\\Users\\suare\\MEGA\\PhD\\1 Code and data
   files:  # series for the pre-training of the models (each model will be pre-trained with one), lags and probs
-    - [1, 'aapl\\APPLE_[2018-08-01_to_2018-09-11]_5min.csv', [4, 0, 3, 1, 1], prob] # aug 2018 only # TODO add best o,p,q,.. config
-    - [2, 'btc\\BITCOIN_[2019-07-01_to_2019-08-01]_5min.csv', [5, 0, 5, 1, 5], prob]  # july 2019 only
-    - [3, 'efts\\5min-level\\IBEX\\IBEX_[2015-11-01_to_2015-11-30].csv', [1, 0, 1, 1, 5], prob]  # nov 2015 only
-    - [4, 'efts\\5min-level\\DOWJONES\\DOWJONES_[2015-08-01_to_2015-08-31].csv', [1, 0, 1, 1, 1], prob]  # aug 2015 only  [1, 0, 1, 1, 1]
+    - [1, 'aapl\\APPLE_[2018-08-01_to_2018-09-11]_5min.csv', [4, 0, 3, 1, 1], 0.25] # aug 2018 only
+    - [2, 'btc\\BITCOIN_[2019-07-01_to_2019-07-15]_5min.csv', [4, 0, 5, 1, 5], 0.25]  # first half of july 2019 only
+    - [3, 'efts\\30min-level\\IBEX\\IBEX_[2017-10-01_to_2017-31-12]_market_hours.csv', [-1], 0.25]  # nov 2015 only
+    - [4, 'efts\\5min-level\\DOWJONES\\DOWJONES_[2015-08-01_to_2015-08-31]_market_hours.csv', [2, 0, 5, 2, 1], 0.25]  # aug 2015 only
+# ----------
 #    - [1, 'raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', 0.25]
-#    - [2, 'raw\\quantquote\\one_second_level\\242321_csv\\20170717/spy.csv', 0.25]
+#    - [3, '20170717\\spy.csv', [4, 0, 3, 1, 1], prob]
+#    - [2, 'raw\\quantquote\\one_second_level\\242321_csv\\20170717/spy.csv', [4, 0, 3, 1, 1], 0.25]
 #    - [3, 'raw\\quantquote\\one_second_level\\242321_csv\\20160914/spy.csv', 0.25]
 #    - [4, 'raw\\quantquote\\one_second_level\\242321_csv\\20170914/spy.csv', 0.25]
 #    - [5, 'raw\\quantquote\\one_second_level\\242321_csv\\20170314/spy.csv', 0.25]
@@ -39,7 +41,7 @@ input:  # model-related
 
 output:
   path: '.\\output'
-  ts_name: 'timeseries_created_1.csv'
+  ts_name: 'timeseries_created_'
   cols: [ 'n_row', 'new_switch', 'cur_switch', 'current_model_id', 'new_model_id', 'weights',
           'ts', 'ret_ts', 'ts_n1_pre', 'ts_n2_pre', 'ts_n1_post', 'ts_n2_post']
 
