@@ -109,7 +109,7 @@ class Model:
         else:
             # Fitting in parallel according to the ARMA value 'p'.
             pool = multiprocessing.Pool(processes=conf['pq_rng'])
-            mapped = pool.map(partial(self.try_model, conf, current_series, lib_conf), range(1, conf['pq_rng'] + 1))
+            mapped = pool.map(partial(self.param_search, conf, current_series, lib_conf), range(1, conf['pq_rng'] + 1))
             best_models_dict = dict(map(reversed, tuple(mapped)))
             best_aic, best_mdl, best_order = self.compute_intermediate_results(best_models_dict)
             return best_aic, best_order, best_mdl
@@ -126,7 +126,7 @@ class Model:
                 best_mdl = i['mdl']
         return best_aic, best_mdl, best_order
 
-    def try_model(self, conf, current_series, lib_conf, p):
+    def param_search(self, conf, current_series, lib_conf, p):
         best_aic, best_order, best_mdl = np.inf, None, None
         self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
 
@@ -167,7 +167,7 @@ class Model:
                     best_mdl = tmp_mdl
             except Exception:
                 continue
-        print(f'////////////\nBEST Model {self/id} p={p} -> aic: {best_aic:6.5f} | order: {best_order}\n////////////')
+        print(f'////////////\nBEST Model {self.id} p={p} -> aic: {best_aic:6.5f} | order: {best_order}\n////////////')
         self.rugarch_lib_instance = None
         return {'aic': best_aic, 'mdl': best_mdl, 'order': best_order}, p
 
