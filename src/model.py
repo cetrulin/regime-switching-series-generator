@@ -126,22 +126,20 @@ class Model:
                 best_mdl = i['mdl']
         return best_aic, best_mdl, best_order
 
-    def try_model(self, conf, current_series, lib_conf, i):
-        for j, k, h in itertools.product(range(1, conf['pq_rng'] + 1), \
-                                         range(1, conf['garch_pq_rng'] + 1), \
-                                         range(1, conf['garch_pq_rng'] + 1)):
-            best_aic = np.inf
-            best_order = None
-            best_mdl = None
-            self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
+    def try_model(self, conf, current_series, lib_conf, p):
+        best_aic, best_order, best_mdl = np.inf, None, None
+        self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
 
+        for q, g_p, g_q in itertools.product(range(1, conf['pq_rng'] + 1),
+                                         range(1, conf['garch_pq_rng'] + 1),
+                                         range(1, conf['garch_pq_rng'] + 1)):
             try:
                 # print(f'Trying params: {(i, 0, j, k, h)} on model {self.id}.')
                 # Initialize R GARCH model
                 spec = self.rugarch_lib_instance.ugarchspec(
-                    mean_model=robjects.r(f'list(armaOrder=c({i},{j}), include.mean=T)'),
+                    mean_model=robjects.r(f'list(armaOrder=c({p},{q}), include.mean=T)'),
                     # Using student T distribution usually provides better fit
-                    variance_model=robjects.r(f'list(garchOrder=c({k},{h}))'),
+                    variance_model=robjects.r(f'list(garchOrder=c({g_p},{g_q}))'),
                     distribution_model='sged')  # 'std'
 
                 # Train R GARCH model on returns as %
@@ -156,21 +154,22 @@ class Model:
                 # Checks - see description of checks in fit function
                 coef = tmp_mdl.slots['fit'].rx2('coef')
                 omega, alpha, beta = coef[-5], coef[-4], coef[-3]
-                assert omega > 0 and alpha > 0 and beta > 0 and alpha + beta < 1
+
+                cond = omega > 0 and alpha > 0 and beta > 0 and alpha + beta < 1
+                # print(cond)
+                assert cond
 
                 tmp_aic = self.get_infocrit(tmp_mdl)[0]  # [0 AIC, 1 BIC, 2 Shibata, 3 Hannan - Quinn ]
-                print(f'Trying params: {(i, 0, j, k, h)} on model {self.id}. AIC is: {tmp_aic}')
+                print(f'Trying params: {(p, 0, q, g_p, g_q)} on model {self.id}. AIC is: {tmp_aic}')
                 if tmp_aic < best_aic:
                     best_aic = tmp_aic
-                    best_order = (i, 0, j, k, h)  # o = 0 in ARMAGARCH
+                    best_order = (p, 0, q, g_p, g_q)  # o = 0 in ARMAGARCH
                     best_mdl = tmp_mdl
-
             except Exception:
                 continue
-
-        print('model {} -> aic: {:6.5f} | order: {}'.format(self.id, best_aic, best_order))
+        print(f'////////////\nBEST Model {self/id} p={p} -> aic: {best_aic:6.5f} | order: {best_order}\n////////////')
         self.rugarch_lib_instance = None
-        return {'aic': best_aic, 'mdl': best_mdl, 'order': best_order}, i
+        return {'aic': best_aic, 'mdl': best_mdl, 'order': best_order}, p
 
     def forecast(self, ts: list(), lib_conf):
         """

@@ -23,17 +23,16 @@ input:  # model-related
   files:  # series for the pre-training of the models (each model will be pre-trained with one), lags and probs
     - [1, 'aapl\\APPLE_[2018-08-01_to_2018-09-11]_5min.csv', [4, 0, 3, 1, 1], 0.25] # aug 2018 only
     - [2, 'btc\\BITCOIN_[2019-07-01_to_2019-07-15]_5min.csv', [4, 0, 5, 1, 5], 0.25]  # first half of july 2019 only
-    - [3, 'efts\\30min-level\\IBEX\\IBEX_[2017-10-01_to_2017-31-12]_market_hours.csv', [-1], 0.25]  # nov 2015 only
+    - [3, 'efts\\30min-level\\IBEX\\IBEX_[2017-07-01_to_2017-31-12]_market_hours.csv', [-1], 0.25]  # nov 2015 only  [(5, 0, 5, 5, 5)]
     - [4, 'efts\\5min-level\\DOWJONES\\DOWJONES_[2015-08-01_to_2015-08-31]_market_hours.csv', [2, 0, 5, 2, 1], 0.25]  # aug 2015 only
-# ----------
-#    - [1, 'raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', 0.25]
-#    - [3, '20170717\\spy.csv', [4, 0, 3, 1, 1], prob]
-#    - [2, 'raw\\quantquote\\one_second_level\\242321_csv\\20170717/spy.csv', [4, 0, 3, 1, 1], 0.25]
-#    - [3, 'raw\\quantquote\\one_second_level\\242321_csv\\20160914/spy.csv', 0.25]
-#    - [4, 'raw\\quantquote\\one_second_level\\242321_csv\\20170914/spy.csv', 0.25]
-#    - [5, 'raw\\quantquote\\one_second_level\\242321_csv\\20170314/spy.csv', 0.25]
-#    - [6, 'raw\\quantquote\\one_second_level\\242321_csv\\20160314/spy.csv', 0.25]
-#    - [7, 'raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', 0.25]
+# ----------IBEX_[2017-01-01_to_2017-31-12]_market_hours
+#    - [1, 'raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', [-1], 0.25]
+#    - [2, '20170717\\spy.csv', [4, 0, 3, 1, 1], prob]
+#    - [3, 'raw\\quantquote\\one_second_level\\242321_csv\\20160914/spy.csv', [-1], 0.25]
+#    - [4, 'raw\\quantquote\\one_second_level\\242321_csv\\20170914/spy.csv', [-1], 0.25]
+#    - [5, 'raw\\quantquote\\one_second_level\\242321_csv\\20170314/spy.csv', [-1], 0.25]
+#    - [6, 'raw\\quantquote\\one_second_level\\242321_csv\\20160314/spy.csv', [-1], 0.25]
+#    - [7, 'raw\\quantquote\\one_second_level\\242321_csv\\20151214/spy.csv', [-1], 0.25]
 #  cols: ['Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Suspicious']
   sim_col: 'close'
   index_col: 'datetime' # 'Time'
