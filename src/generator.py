@@ -247,24 +247,25 @@ def start_switch(counter, conf):
     if conf['use_transition_map']:
         # Set no-switch by default
         switch_shp = (conf['gradual_drift_sharpness'], conf['abrupt_drift_sharpness'], conf['defined_drift_sharpness'])
-        new_switch_type, switch_shp, conf = Switch.NONE, switch_shp, conf
+        new_switch_type, switch_shp, conf, switch_to = Switch.NONE, switch_shp, conf, None
 
-        for (it, length) in conf['transition_map']:
+        for (it, length, to_mdl) in conf['transition_map']:
             if counter == it:
                 new_switch_type = Switch.PREDEFINED
                 conf['defined_drift_sharpness'] = 100.0 / float(length + 1) / 100.0
                 switch_shp = (conf['gradual_drift_sharpness'], conf['abrupt_drift_sharpness'],
                               conf['defined_drift_sharpness'])
-                return new_switch_type, switch_shp, conf
+                switch_to = to_mdl
+                return new_switch_type, switch_shp, conf, switch_to
 
             elif counter < it:
-                return new_switch_type, switch_shp, conf
+                return new_switch_type, switch_shp, conf, switch_to
     else:
         # No new switch if there is one already in progress
         new_switch_type = random_switch(conf['switching_probability'], conf['abrupt_drift_prob'])
 
     switch_shp = [conf['gradual_drift_sharpness'], conf['abrupt_drift_sharpness'], conf['defined_drift_sharpness']]
-    return new_switch_type, switch_shp, conf
+    return new_switch_type, switch_shp, conf, None
 
 
 def get_new_model(current_id: int, config: dict()):
@@ -296,7 +297,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     """
     # Init params
     switch_type = Switch.NONE
-    no_switch = Switch.NONE, None, tool_params
+    no_switch = Switch.NONE, None, tool_params, None
     use_sig_w = tool_params['w_func'] == 'sig'
 
     # Start with model A as initial model
@@ -316,7 +317,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         old_model_forecast = current_model.forecast(list(current_model.input_ts)
                                                     if it_counter < max(current_model.get_lags()) else list(ts),
                                                     armagarch_lib)
-        new_switch_type, new_switch_shp, tool_params = no_switch \
+        new_switch_type, new_switch_shp, tool_params, switch_to = no_switch \
             if (0 < w[1] < 1 or state_counter <= tool_params['min_model_len']) \
             else start_switch(it_counter, tool_params)
 
@@ -324,7 +325,10 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         if new_switch_type.value >= 0:
             logging.info(f'There is a {new_switch_type.name} switch.')
             switch_type, switch_shp = new_switch_type, new_switch_shp
-            new_model = models[f'{MODEL_DICT_NAMES}{get_new_model(current_model.id, data_config["files"])}']
+            # 'switch_to' is only used if transition_maps are enabled.
+            new_mdl_number = get_new_model(current_model.id, data_config["files"]) if switch_to is None else switch_to
+            new_model = models[f'{MODEL_DICT_NAMES}{new_mdl_number}'] \
+
             w = update_weights(w=reset_weights(), switch_sharpness=switch_shp[switch_type.value])
             sig_w = (gutils.get_sigmoid()[int(w[0]*100)], 1 - gutils.get_sigmoid()[int(w[0]*100)])  # kernel to sig func
 
