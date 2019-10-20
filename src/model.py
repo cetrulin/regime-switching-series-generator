@@ -111,6 +111,8 @@ class Model:
             pool = multiprocessing.Pool(processes=conf['pq_rng'])
             mapped = pool.map(partial(self.param_search, conf, current_series, lib_conf), range(1, conf['pq_rng'] + 1))
             best_models_dict = dict(map(reversed, tuple(mapped)))
+
+            # Retrieving the best result across all threads (each value of p)
             best_aic, best_mdl, best_order = self.compute_intermediate_results(best_models_dict)
             return best_aic, best_order, best_mdl
 
@@ -131,8 +133,8 @@ class Model:
         self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
 
         for q, g_p, g_q in itertools.product(range(1, conf['pq_rng'] + 1),
-                                         range(1, conf['garch_pq_rng'] + 1),
-                                         range(1, conf['garch_pq_rng'] + 1)):
+                                             range(1, conf['garch_pq_rng'] + 1),
+                                             range(1, conf['garch_pq_rng'] + 1)):
             try:
                 # print(f'Trying params: {(i, 0, j, k, h)} on model {self.id}.')
                 # Initialize R GARCH model
@@ -154,13 +156,13 @@ class Model:
                 # Checks - see description of checks in fit function
                 coef = tmp_mdl.slots['fit'].rx2('coef')
                 omega, alpha, beta = coef[-5], coef[-4], coef[-3]
-
-                cond = omega > 0 and alpha > 0 and beta > 0 and alpha + beta < 1
-                # print(cond)
+                cond = omega > 0 and alpha > 0 and beta > 0 and alpha + beta < 1  # print(cond)
                 assert cond
 
-                tmp_aic = self.get_infocrit(tmp_mdl)[0]  # [0 AIC, 1 BIC, 2 Shibata, 3 Hannan - Quinn ]
-                print(f'Trying params: {(p, 0, q, g_p, g_q)} on model {self.id}. AIC is: {tmp_aic}')
+                # [0 AIC, 1 BIC, 2 Shibata, 3 Hannan - Quinn ]
+                tmp_aic, tmp_bic, tmp_sic, tmp_hic = self.get_infocrit(tmp_mdl)
+                print(f'Trying params: {(p, 0, q, g_p, g_q)} on model {self.id} - '
+                      f'AIC: {tmp_aic:6.5f} | BIC: {tmp_bic} | SIC: {tmp_sic} | HQIC: {tmp_hic}')
                 if tmp_aic < best_aic:
                     best_aic = tmp_aic
                     best_order = (p, 0, q, g_p, g_q)  # o = 0 in ARMAGARCH

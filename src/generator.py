@@ -177,7 +177,8 @@ def fit_models(series_dict: dict(), input_data_conf: dict(), params: dict(),
     """
     # Fit models in parallel
     logging.info('Fitting models...')
-    pool = gutils.MyPool(1)  # multiprocessing.Pool(processes=len(input_data_conf['files']))
+    n_threads = 1
+    pool = gutils.MyPool(n_threads)  # multiprocessing.Pool(processes=len(input_data_conf['files']))
     mapped = pool.map(partial(fit_model, show_plt, params, armagarch_lib), series_dict.items())
     return dict(map(reversed, tuple(mapped)))
 
