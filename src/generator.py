@@ -55,10 +55,6 @@ def instantiate_model(config, show_plt, file_config):
     # df.columns = config['cols']
     df.set_index(keys=config['index_col'], drop=True, inplace=True)
 
-    print('from here!!!')
-    print(df.head())
-    print(f'searching  {config["sim_col"]}')
-
     # 2. Clean nulls and select series
     raw_series = df[[config['sim_col']]]  # .dropna()
     raw_returns_series = 100 * df[[config['sim_col']]].pct_change()  # .dropna()
@@ -391,6 +387,7 @@ def prepare_and_export(global_params, output_format, rc, ts, reconstruction_pric
 
     # 5.2 reconstruction
     rc['ts'] = gutils.reconstruct(ts, init_val=reconstruction_price)
+    # rc['ts_mult'] = gutils.reconstruct(ts * 5, init_val=reconstruction_price)
     # Gaussian noise & reconstruct
     rc['ts_n1_pre'] = gutils.reconstruct(ts_gn, init_val=reconstruction_price)
     # SNR and White Gaussian Noise & reconstruct

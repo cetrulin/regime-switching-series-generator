@@ -162,7 +162,7 @@ class Model:
                 # [0 AIC, 1 BIC, 2 Shibata, 3 Hannan - Quinn ]
                 tmp_aic, tmp_bic, tmp_sic, tmp_hic = self.get_infocrit(tmp_mdl)
                 print(f'Trying params: {(p, 0, q, g_p, g_q)} on model {self.id} - '
-                      f'AIC: {tmp_aic:6.5f} | BIC: {tmp_bic} | SIC: {tmp_sic} | HQIC: {tmp_hic}')
+                      f'AIC: {tmp_aic:6.5f} | BIC: {tmp_bic:6.5f} | SIC: {tmp_sic:6.5f} | HQIC: {tmp_hic:6.5f}')
                 if tmp_aic < best_aic:
                     best_aic = tmp_aic
                     best_order = (p, 0, q, g_p, g_q)  # o = 0 in ARMAGARCH

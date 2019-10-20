@@ -99,11 +99,12 @@ def reconstruct(ts: float, init_val: float):
     """
     This function reconstructs the initial series, as the models are trained with returns/deltas in log scale.
     :param new_model_forecast - forecast as a return and in log scale
+    :param new_model_forecast - forecast as a return and in log scale
     :param init_value - initial value of the current series for the reconstruction
     :return: forecast reconstructed.
     """
     # return init_value * np.exp(ts[TIME_HORIZON - 1] * -1)
-    return init_val * np.exp(np.cumsum(ts * -1))
+    return init_val * np.exp(np.cumsum(ts))  # * -1))
 
 
 def add_noise(noise_level: float, ts: list()):
