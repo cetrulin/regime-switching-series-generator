@@ -1,4 +1,4 @@
-rpy2==2.9.5
+# Python libraries
 numpy==1.16.4
 statsmodels==0.10.1
 scipy==1.3.1
@@ -10,3 +10,7 @@ PyYAML==5.1.2
 TA-Lib==0.4.17
 timedelta==2019.4.13
 arch==4.8.1
+rpy2==2.9.5
+
+# R libraries
+# rugarch==1.4.1
