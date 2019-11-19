@@ -173,7 +173,7 @@ def fit_models(series_dict: dict(), input_data_conf: dict(), params: dict(),
     """
     # Fit models in parallel
     logging.info('Fitting models...')
-    n_threads = 1
+    n_threads = 4
     pool = gutils.MyPool(n_threads)  # multiprocessing.Pool(processes=len(input_data_conf['files']))
     mapped = pool.map(partial(fit_model, show_plt, params, armagarch_lib), series_dict.items())
     return dict(map(reversed, tuple(mapped)))
@@ -358,7 +358,8 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         # 3. Otherwise, use the current forecast
         else:
             ts.append(old_model_forecast)
-
+        # if len(ts) % 100 == 0:
+        print(f'len {len(ts)}:: {ts[-1]}')
         state_counter = state_counter + 1
         # logging.info(f'Period {it_counter}: {ts}')
 
@@ -404,6 +405,43 @@ def prepare_and_export(global_params, output_format, rc, ts, reconstruction_pric
                                      index=False)
 
 
+def prepare_and_export_2(global_params, output_format, rc, ts, reconstruction_price):
+    """
+    This function reconstruct prices, adds noise and and exports a csv
+    :param global_params: config params
+    :param output_format: info about file to be exported
+    :param rc: registered events
+    :param ts: time series generated
+    :param reconstruction_price: price for reconstruction
+    :return:
+    """
+    logging.info('Reconstructing prices and adding noise...')
+    rc['ret_ts'] = ts
+
+    print(rc.head())
+
+    # 5.1 noise over returns
+    ts_gn, ts_snr = gutils.add_noise(global_params['white_noise_level'], list(rc['ret_ts']))
+
+    # 5.2 reconstruction
+    rc['ts'] = gutils.reconstruct(ts, init_val=reconstruction_price)
+
+    # Gaussian noise & reconstruct
+    rc['ts_n1_pre'] = gutils.reconstruct(ts_gn, init_val=reconstruction_price)
+    # SNR and White Gaussian Noise & reconstruct
+    rc['ts_n2_pre'] = gutils.reconstruct(ts_snr, init_val=reconstruction_price)
+
+    # 5.3 noise post-reconstruction (over prices)
+    ts_gn, ts_snr = gutils.add_noise(global_params['white_noise_level'], list(rc['ts']))
+    rc['ts_n1_post'] = ts_gn  # Gaussian noise
+    rc['ts_n2_post'] = ts_snr  # SNR and White Gaussian Noise
+
+    # 6 Final simulation (TS created) and a log of the regime changes (RC) to CSV files
+    rc[output_format['cols']].to_csv(os.sep.join([output_format['path'],
+                                                  output_format['ts_name'] + str(int(time.time())) + '.csv']),
+                                     index=False)
+
+
 def compute():
     """
     This function coordinates the whole process.
@@ -433,9 +471,34 @@ def compute():
 
     # 5 Add noise (gaussian noise and SNR) pre-reconstruction, reconstruct prices and add noise post-reconstruction
     # 6 and export
+    pc = rc.copy()
+    pc['ret_ts'] = ts
+    pc.to_csv(os.sep.join([output_format['path'], output_format['ts_name'] + str(int(time.time())) + '.csv']), index=False)
+    # 6 Final simulation (TS created) and a log of the regime changes (RC) to CSV files
     prepare_and_export(global_params, output_format, rc, ts,
                        reconstruction_price=models_dict['fitted_1'].rec_price)
 
 
+def reconstruct(filename: str):
+    import os
+
+    # Read YAML file
+    with open("config.yaml", 'r') as stream:
+        config = yaml.safe_load(stream)
+        input_data_config = config['input']
+        global_params = config['params']
+        out_format = config['output']
+        armagarch_lib = {'lib': 'rugarch', 'env': config['env']['r_libs_path']}
+
+    df = pd.read_csv(os.sep.join([out_format['path'], filename]))
+    # models_dict['fitted_1']  # -> 227.52
+    # models_dict['fitted_2']  # -> 10850.26
+    # models_dict['fitted_3']  # -> 0.3199
+    # models_dict['fitted_4']  # -> 164.91
+    prepare_and_export_2(global_params, out_format, rc=df, ts=df.ret_ts, reconstruction_price=227.52)
+
+
 if __name__ == '__main__':
     compute()
+    # reconstruct(filename='timeseries_created_1574036675.csv')
+

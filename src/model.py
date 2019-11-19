@@ -182,10 +182,13 @@ class Model:
         :return forecast or the next time horizon
         """
         self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
-        forecast = self.rugarch_lib_instance.ugarchforecast(self.ARMAGARCHspec, data=ts,
+        forecast = self.rugarch_lib_instance.ugarchforecast(self.ARMAGARCHspec,
+                                                            # Rolling window of latest 1000 values to avoid huge values
+                                                            #  in forecasts when switching some models.
+                                                            data=ts[-1000:] if len(ts) > 1000 else ts,
                                                             n_ahead=1, n_roll=0, out_sample=0)
-        print(f'len: {len(ts)}')
-        print(np.array(forecast.slots['forecast'].rx2('seriesFor')).flatten())
+        # print(f'len: {len(ts)}')
+        # print(f'len: {len(ts)}  - {np.array(forecast.slots["forecast"].rx2("seriesFor")).flatten()[0]}')
 
         self.rugarch_lib_instance = None
         return np.array(forecast.slots['forecast'].rx2('seriesFor')).flatten()[0]
