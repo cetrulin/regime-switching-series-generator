@@ -11,9 +11,10 @@ params:
   pq_rng: 10  # ARMA lag order range
   d_rng: 1   # [0] # we'll use arma-garch, so not d (= 0) - just for ARIMA
   garch_pq_rng: 5  # GARCH lag order range
+  roll_window_size: 650
   use_transition_map: True  # If True, switches will be pre-defined by the map below
-  transition_map: [[10, 10, 2], [11000, 100, 1], [24500, 10, 3], [41100, 100, 1], [52700, 10, 3], [67200, 100, 1],
-                   [83500, 10, 2], [98800, 100, 4], [114400, 10, 3], [133000, 10, 4]]  # iteration of switch (in ASC order), duration of switch as a number of iterations, and model destination at switch
+  transition_map: [[12000, 100, 2], [24500, 10, 3], [41100, 100, 1], [52700, 10, 3], [67200, 100, 1],
+                   [83500, 10, 2], [94800, 100, 4], [110400, 10, 3], [133000, 10, 4]]  # iteration of switch (in ASC order), duration of switch as a number of iterations, and model destination at switch
 
 input:  # model-related
   path: '.\\data\\'  # C:\\Users\\suare\\MEGA\\PhD\\1 Code and data

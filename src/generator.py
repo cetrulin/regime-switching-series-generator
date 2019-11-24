@@ -312,7 +312,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         # 1 Start forecasting in 1 step horizons using the current model
         old_model_forecast = current_model.forecast(list(current_model.input_ts)
                                                     if it_counter < max(current_model.get_lags()) else list(ts),
-                                                    armagarch_lib)
+                                                    armagarch_lib, tool_params['roll_window_size'])
         new_switch_type, new_switch_shp, tool_params, switch_to = no_switch \
             if (0 < w[1] < 1 or state_counter <= tool_params['min_model_len']) \
             else start_switch(it_counter, tool_params)
@@ -339,7 +339,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
             # Forecast and expand current series (current model is the old one, this becomes current when weight == 1)
             new_model_forecast = new_model.forecast(list(new_model.input_ts)
                                                     if it_counter < max(new_model.get_lags()) else list(ts),
-                                                    armagarch_lib)
+                                                    armagarch_lib, tool_params['roll_window_size'])
             ts.append(old_model_forecast * (sig_w[0] if use_sig_w else w[0]) +
                       new_model_forecast * (sig_w[1] if use_sig_w else w[1]))
 
