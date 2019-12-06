@@ -319,9 +319,10 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
               f'IT_COUNTER: {it_counter}')
         if (tool_params['use_transition_map']) & (w[0] == 1) & (it_counter >= max(current_model.get_lags())):
             next_drift = get_next_switch(it_counter, tool_params)
-            if it_counter < next_drift:
-                n_steps = next_drift - it_counter
-                it_counter = next_drift - 1
+            next_fcst_horizon = next_drift if it_counter < next_drift else tool_params['periods']
+            if it_counter < next_fcst_horizon:
+                n_steps = next_fcst_horizon - it_counter
+                it_counter = next_fcst_horizon - 1
                 print(f'N_STEPS: {n_steps}  IT_COUNTER: {it_counter}')
         print(it_counter)
         print(w[0])
@@ -357,7 +358,8 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
                                                     if it_counter < max(new_model.get_lags()) else list(ts),
                                                     armagarch_lib, tool_params['roll_window_size'])
             assert len(old_model_forecast) == 1 & len(new_model_forecast) == 1, \
-                'Lenght of forecasts shouldn\'t be greater than 1 during a switch'
+                'Lenght of forec' \
+                'asts shouldn\'t be greater than 1 during a switch'
             ts.append(old_model_forecast[0] * (sig_w[0] if use_sig_w else w[0]) +
                       new_model_forecast[0] * (sig_w[1] if use_sig_w else w[1]))
 
@@ -378,9 +380,10 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
             for om_fcst_pos in old_model_forecast:
                 ts.append(om_fcst_pos)
         # if len(ts) % 100 == 0:
-        print(f'len {len(ts)}:: {ts[-1]}')
+        # print(f'len {len(ts)}:: {ts[-1]}')
         state_counter = state_counter + 1
-        logging.info(f'Period {it_counter}: {ts}')
+        it_counter = it_counter + 1
+        logging.info(f'Period {it_counter}: {ts[0]}')
 
     # 4 Plot simulations
     if show_plt:
