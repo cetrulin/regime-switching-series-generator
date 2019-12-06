@@ -306,13 +306,29 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     w = reset_weights()  # tuple (current, new) of model weights.
     sig_w = reset_weights()
     state_counter = 0
-    # tool_params['transition_map']
+
     logging.info('Start of the context-switching generative process:')
-    for it_counter in range(tool_params['periods']):
+    it_counter = 0
+    while it_counter < tool_params['periods']:
+        print(f'IT COUNTER IS: {it_counter} periods: {tool_params["periods"]}')
         # 1 Start forecasting in 1 step horizons using the current model
+        n_steps = 1
+        # using transitions map and not during drift, n_steps = 'steps till next drift'
+        print(f'TMAP: {tool_params["use_transition_map"]}  w:'
+              f'{w[0]} '
+              f'IT_COUNTER: {it_counter}')
+        if (tool_params['use_transition_map']) & (w[0] == 1) & (it_counter >= max(current_model.get_lags())):
+            next_drift = get_next_switch(it_counter, tool_params)
+            if it_counter < next_drift:
+                n_steps = next_drift - it_counter
+                it_counter = next_drift - 1
+                print(f'N_STEPS: {n_steps}  IT_COUNTER: {it_counter}')
+        print(it_counter)
+        print(w[0])
+        # TODO: why is input_ts inside the model object?
         old_model_forecast = current_model.forecast(list(current_model.input_ts)
                                                     if it_counter < max(current_model.get_lags()) else list(ts),
-                                                    armagarch_lib, tool_params['roll_window_size'])
+                                                    armagarch_lib, tool_params['roll_window_size'], n_steps)
         new_switch_type, new_switch_shp, tool_params, switch_to = no_switch \
             if (0 < w[1] < 1 or state_counter <= tool_params['min_model_len']) \
             else start_switch(it_counter, tool_params)
@@ -340,8 +356,10 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
             new_model_forecast = new_model.forecast(list(new_model.input_ts)
                                                     if it_counter < max(new_model.get_lags()) else list(ts),
                                                     armagarch_lib, tool_params['roll_window_size'])
-            ts.append(old_model_forecast * (sig_w[0] if use_sig_w else w[0]) +
-                      new_model_forecast * (sig_w[1] if use_sig_w else w[1]))
+            assert len(old_model_forecast) == 1 & len(new_model_forecast) == 1, \
+                'Lenght of forecasts shouldn\'t be greater than 1 during a switch'
+            ts.append(old_model_forecast[0] * (sig_w[0] if use_sig_w else w[0]) +
+                      new_model_forecast[0] * (sig_w[1] if use_sig_w else w[1]))
 
             w = update_weights(w, switch_shp[switch_type.value])
             sig_w = (gutils.get_sigmoid()[int(w[0]*100)], 1 - gutils.get_sigmoid()[int(w[0]*100)])  # kernel to sig func
@@ -357,17 +375,29 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
 
         # 3. Otherwise, use the current forecast
         else:
-            ts.append(old_model_forecast)
+            for om_fcst_pos in old_model_forecast:
+                ts.append(om_fcst_pos)
         # if len(ts) % 100 == 0:
         print(f'len {len(ts)}:: {ts[-1]}')
         state_counter = state_counter + 1
-        # logging.info(f'Period {it_counter}: {ts}')
+        logging.info(f'Period {it_counter}: {ts}')
 
     # 4 Plot simulations
     if show_plt:
         gutils.plot_results(ts)
 
     return pd.Series(ts),  pd.DataFrame(rc)
+
+
+def get_next_switch(it_counter, tool_params):
+    """ This function receives a transition map in ascending order and returns the next switch
+    :param it_counter: current iteration
+    :param tool_params: dictionary that contains the transition map"""
+    next_drift = -1
+    for it_sw, len_sw, _ in tool_params['transition_map']:
+        if it_counter < it_sw:
+            return it_sw
+    return next_drift
 
 
 def prepare_and_export(global_params, output_format, rc, ts, reconstruction_price):

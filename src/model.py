@@ -173,26 +173,27 @@ class Model:
         self.rugarch_lib_instance = None
         return {'aic': best_aic, 'mdl': best_mdl, 'order': best_order}, p
 
-    def forecast(self, ts: list(), lib_conf, roll: int = 1000):
+    def forecast(self, ts: list(), lib_conf, roll: int = 1000, n_steps: int = 1):
         """
         This function calls the R rugarch library to produce a the ARMA-GARCH forecast.
         :param self - current selected model
         :param ts - current series
         :param lib_conf: TSpackage for R library to use
-        :param max-size of window for series sent for forecasting
+        :param roll: max-size of rolling window fed to forecast
+        :param n_steps: number of steps ahead forecasted
         :return forecast or the next time horizon
         """
         self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
         forecast = self.rugarch_lib_instance.ugarchforecast(self.ARMAGARCHspec,
                                                             # Rolling window of latest 1000 values to avoid huge values
                                                             #  in forecasts when switching some models.
-                                                            data=ts[-roll:] if len(ts) > roll else ts,  # TODO: make this a param
-                                                            n_ahead=1, n_roll=0, out_sample=0)
+                                                            data=ts[-roll:] if len(ts) > roll else ts,
+                                                            n_ahead=n_steps, n_roll=0, out_sample=0)
         # print(f'len: {len(ts)}')
         # print(f'len: {len(ts)}  - {np.array(forecast.slots["forecast"].rx2("seriesFor")).flatten()[0]}')
 
         self.rugarch_lib_instance = None
-        return np.array(forecast.slots['forecast'].rx2('seriesFor')).flatten()[0]
+        return np.array(forecast.slots['forecast'].rx2('seriesFor')).flatten()  # n_steps
 
     def set_spec_from_model(self, model):
         """ This function sets an spec of a fitted model into the object."""
