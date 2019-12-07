@@ -342,11 +342,11 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         if new_switch_type.value >= 0:
             logging.info(f'There is a {new_switch_type.name} switch.')
             switch_type, switch_shp = new_switch_type, new_switch_shp
-            print(f'switch sharpness: {switch_shp}')
+            # print(f'switch sharpness: {switch_shp}')
             # 'switch_to' is only used if transition_maps are enabled.
             new_mdl_number = get_new_model(current_model.id, data_config["files"]) if switch_to is None else switch_to
             new_model = models[f'{MODEL_DICT_NAMES}{new_mdl_number}']
-            print(f'switch_type.value: {switch_type.value}')
+            # print(f'switch_type.value: {switch_type.value}')
 
             w = update_weights(w=reset_weights(), switch_sharpness=switch_shp[switch_type.value])
             sig_w = (gutils.get_sigmoid()[int(w[0]*100)], 1 - gutils.get_sigmoid()[int(w[0]*100)])  # kernel to sig func
@@ -457,8 +457,6 @@ def prepare_and_export_2(global_params, output_format, rc, ts, reconstruction_pr
     """
     logging.info('Reconstructing prices and adding noise...')
     rc['ret_ts'] = ts
-
-    print(rc.head())
 
     # 5.1 noise over returns
     ts_gn, ts_snr = gutils.add_noise(global_params['white_noise_level'], list(rc['ret_ts']))
