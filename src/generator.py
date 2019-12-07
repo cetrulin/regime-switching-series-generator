@@ -310,29 +310,32 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     logging.info('Start of the context-switching generative process:')
     it_counter = 0
     while it_counter < tool_params['periods']:
-        print(f'IT COUNTER IS: {it_counter} periods: {tool_params["periods"]}')
+        # print(f'IT COUNTER IS: {it_counter} periods: {tool_params["periods"]}')
         # 1 Start forecasting in 1 step horizons using the current model
+        new_switch_type, new_switch_shp, tool_params, switch_to = no_switch \
+            if (0 < w[1] < 1 or state_counter <= tool_params['min_model_len']) \
+            else start_switch(it_counter, tool_params)
         n_steps = 1
         # using transitions map and not during drift, n_steps = 'steps till next drift'
-        print(f'TMAP: {tool_params["use_transition_map"]}  w:'
-              f'{w[0]} '
-              f'IT_COUNTER: {it_counter}')
-        if (tool_params['use_transition_map']) & (w[0] == 1) & (it_counter >= max(current_model.get_lags())):
+        # print(f'TMAP: {tool_params["use_transition_map"]}  w:'
+        #       f'{w[0]} '
+        #       f'IT_COUNTER: {it_counter}')
+        print(w[0])
+        if (tool_params['use_transition_map']) & (w[0] == 1) & \
+                (new_switch_type.value < 0) & (it_counter >= max(current_model.get_lags())):
             next_drift = get_next_switch(it_counter, tool_params)
             next_fcst_horizon = next_drift if it_counter < next_drift else tool_params['periods']
             if it_counter < next_fcst_horizon:
                 n_steps = next_fcst_horizon - it_counter
                 it_counter = next_fcst_horizon - 1
-                print(f'N_STEPS: {n_steps}  IT_COUNTER: {it_counter}')
-        print(it_counter)
-        print(w[0])
-        # TODO: why is input_ts inside the model object?
+                state_counter = next_fcst_horizon - 1
+
+            # print(f'N_STEPS: {n_steps}  IT_COUNTER: {it_counter}')
+        # print(it_counter)
+        # print(w[0])
         old_model_forecast = current_model.forecast(list(current_model.input_ts)
                                                     if it_counter < max(current_model.get_lags()) else list(ts),
                                                     armagarch_lib, tool_params['roll_window_size'], n_steps)
-        new_switch_type, new_switch_shp, tool_params, switch_to = no_switch \
-            if (0 < w[1] < 1 or state_counter <= tool_params['min_model_len']) \
-            else start_switch(it_counter, tool_params)
 
         # 2 In case of switch, select a new model and reset weights: (1.0, 0.0) at the start (no changes) by default.
         if new_switch_type.value >= 0:
@@ -379,6 +382,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         else:
             for om_fcst_pos in old_model_forecast:
                 ts.append(om_fcst_pos)
+                # print(om_fcst_pos)
         # if len(ts) % 100 == 0:
         # print(f'len {len(ts)}:: {ts[-1]}')
         state_counter = state_counter + 1
@@ -505,8 +509,12 @@ def compute():
     # 5 Add noise (gaussian noise and SNR) pre-reconstruction, reconstruct prices and add noise post-reconstruction
     # 6 and export
     pc = rc.copy()
+    rc.index = rc['n_row']
+    rc = rc.reindex(range(rc['n_row'].max())).bfill()
+    rc['n_row'] = rc.index
     pc['ret_ts'] = ts
-    pc.to_csv(os.sep.join([output_format['path'], output_format['ts_name'] + str(int(time.time())) + '.csv']), index=False)
+    pc.to_csv(os.sep.join([output_format['path'], output_format['ts_name'] + str(int(time.time())) + '.csv']),
+              index=False)
     # 6 Final simulation (TS created) and a log of the regime changes (RC) to CSV files
     prepare_and_export(global_params, output_format, rc, ts,
                        reconstruction_price=models_dict['fitted_1'].rec_price)
