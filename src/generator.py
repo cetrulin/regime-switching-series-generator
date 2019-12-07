@@ -186,9 +186,10 @@ def update_weights(w, switch_sharpness):
     :param switch_sharpness: speed of changes
     :return: tuple of weights updated.
     """
-    if switch_sharpness < 0.1:
-        print('Minimum switch abrupcy is 0.1, so this is the value being used. ')
-        switch_sharpness = 0.1
+    min_sp = 0.005
+    if switch_sharpness < min_sp:
+        print(f'Minimum switch abrupcy is {min_sp}, so this is the value being used. ')
+        switch_sharpness = min_sp
     incr = switch_sharpness
     w = (w[0] - incr, w[1] + incr)
 
@@ -312,15 +313,15 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     while it_counter < tool_params['periods']:
         # print(f'IT COUNTER IS: {it_counter} periods: {tool_params["periods"]}')
         # 1 Start forecasting in 1 step horizons using the current model
+        n_steps = 1
         new_switch_type, new_switch_shp, tool_params, switch_to = no_switch \
             if (0 < w[1] < 1 or state_counter <= tool_params['min_model_len']) \
             else start_switch(it_counter, tool_params)
-        n_steps = 1
         # using transitions map and not during drift, n_steps = 'steps till next drift'
         # print(f'TMAP: {tool_params["use_transition_map"]}  w:'
         #       f'{w[0]} '
         #       f'IT_COUNTER: {it_counter}')
-        print(w[0])
+        # print(w[0])
         if (tool_params['use_transition_map']) & (w[0] == 1) & \
                 (new_switch_type.value < 0) & (it_counter >= max(current_model.get_lags())):
             next_drift = get_next_switch(it_counter, tool_params)
@@ -341,9 +342,11 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         if new_switch_type.value >= 0:
             logging.info(f'There is a {new_switch_type.name} switch.')
             switch_type, switch_shp = new_switch_type, new_switch_shp
+            print(f'switch sharpness: {switch_shp}')
             # 'switch_to' is only used if transition_maps are enabled.
             new_mdl_number = get_new_model(current_model.id, data_config["files"]) if switch_to is None else switch_to
-            new_model = models[f'{MODEL_DICT_NAMES}{new_mdl_number}'] \
+            new_model = models[f'{MODEL_DICT_NAMES}{new_mdl_number}']
+            print(f'switch_type.value: {switch_type.value}')
 
             w = update_weights(w=reset_weights(), switch_sharpness=switch_shp[switch_type.value])
             sig_w = (gutils.get_sigmoid()[int(w[0]*100)], 1 - gutils.get_sigmoid()[int(w[0]*100)])  # kernel to sig func
@@ -508,10 +511,11 @@ def compute():
 
     # 5 Add noise (gaussian noise and SNR) pre-reconstruction, reconstruct prices and add noise post-reconstruction
     # 6 and export
-    pc = rc.copy()
-    rc.index = rc['n_row']
+    rc.index = rc['n_row'].astype(int)
     rc = rc.reindex(range(rc['n_row'].max())).bfill()
     rc['n_row'] = rc.index
+    pc = rc.copy()
+    pc['ret_ts'] = ts
     pc['ret_ts'] = ts
     pc.to_csv(os.sep.join([output_format['path'], output_format['ts_name'] + str(int(time.time())) + '.csv']),
               index=False)
