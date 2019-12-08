@@ -211,7 +211,7 @@ def get_event_dict(counter, current_model, new_model, new_switch_type, switch_ty
     return {'n_row': counter,
             'new_switch': new_switch_type.name,
             'cur_switch': switch_type.name if switch_type.name != 'PREDEFINED'
-            else '_'.join([switch_type.name, str(int(100/(tool_params['defined_drift_sharpness']*100)) - 1)]),
+            else '_'.join([switch_type.name, str(int(100/(round(tool_params['defined_drift_sharpness'], 3)*100)))]),
             'weights': w,
             'current_model_id': current_model.id,  # Add p,o,q to this?
             'new_model_id': -1 if new_model is None else new_model.id}
@@ -309,7 +309,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     state_counter = 0
 
     logging.info('Start of the context-switching generative process:')
-    it_counter = 0
+    it_counter = logging_it_counter = 0
     while it_counter < tool_params['periods']:
         # print(f'IT COUNTER IS: {it_counter} periods: {tool_params["periods"]}')
         # 1 Start forecasting in 1 step horizons using the current model
@@ -317,6 +317,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         new_switch_type, new_switch_shp, tool_params, switch_to = no_switch \
             if (0 < w[1] < 1 or state_counter <= tool_params['min_model_len']) \
             else start_switch(it_counter, tool_params)
+
         # using transitions map and not during drift, n_steps = 'steps till next drift'
         # print(f'TMAP: {tool_params["use_transition_map"]}  w:'
         #       f'{w[0]} '
@@ -331,7 +332,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
                 it_counter = next_fcst_horizon - 1
                 state_counter = next_fcst_horizon - 1
 
-            # print(f'N_STEPS: {n_steps}  IT_COUNTER: {it_counter}')
+        # print(f'N_STEPS: {n_steps}  IT_COUNTER: {it_counter}')
         # print(it_counter)
         # print(w[0])
         old_model_forecast = current_model.forecast(list(current_model.input_ts)
@@ -352,7 +353,8 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
             sig_w = (gutils.get_sigmoid()[int(w[0]*100)], 1 - gutils.get_sigmoid()[int(w[0]*100)])  # kernel to sig func
 
         # 3 Log switches and events
-        rc.append(get_event_dict(it_counter, current_model, new_model, new_switch_type, switch_type, tool_params,
+        rc.append(get_event_dict(logging_it_counter, current_model, new_model,
+                                 new_switch_type, switch_type, tool_params,
                                  sig_w if use_sig_w else w))
         assert (sig_w[0] + sig_w[1] if use_sig_w else w[0] + w[1]) == 1
 
@@ -390,7 +392,8 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         # print(f'len {len(ts)}:: {ts[-1]}')
         state_counter = state_counter + 1
         it_counter = it_counter + 1
-        logging.info(f'Period {it_counter}: {ts[0]}')
+        logging_it_counter = it_counter
+        logging.info(f'Period {it_counter}: {ts[-1]}')
 
     # 4 Plot simulations
     if show_plt:
@@ -412,13 +415,13 @@ def get_next_switch(it_counter, tool_params):
 
 def prepare_and_export(global_params, output_format, rc, ts, reconstruction_price):
     """
-    This function reconstruct prices, adds noise and and exports a csv
-    :param global_params: config params
-    :param output_format: info about file to be exported
-    :param rc: registered events
-    :param ts: time series generated
-    :param reconstruction_price: price for reconstruction
-    :return:
+        This function reconstruct prices, adds noise and and exports a csv
+        :param global_params: config params
+        :param output_format: info about file to be exported
+        :param rc: registered events
+        :param ts: time series generated
+        :param reconstruction_price: price for reconstruction
+        :return:
     """
     logging.info('Reconstructing prices and adding noise...')
     rc['ret_ts'] = ts
@@ -510,13 +513,12 @@ def compute():
     # 5 Add noise (gaussian noise and SNR) pre-reconstruction, reconstruct prices and add noise post-reconstruction
     # 6 and export
     rc.index = rc['n_row'].astype(int)
-    rc = rc.reindex(range(rc['n_row'].max())).bfill()
-    rc['n_row'] = rc.index
-    pc = rc.copy()
-    pc['ret_ts'] = ts
-    pc['ret_ts'] = ts
-    pc.to_csv(os.sep.join([output_format['path'], output_format['ts_name'] + str(int(time.time())) + '.csv']),
-              index=False)
+    rc = rc.reindex(range(global_params['periods'])).ffill()
+    rc['n_row'] = np.arange(len(rc))
+    # pc = rc.copy()
+    # pc['ret_ts'] = ts
+    # pc.to_csv(os.sep.join([output_format['path'], output_format['ts_name'] + str(int(time.time())) + '.csv']),
+    #           index=False)
     # 6 Final simulation (TS created) and a log of the regime changes (RC) to CSV files
     prepare_and_export(global_params, output_format, rc, ts,
                        reconstruction_price=models_dict['fitted_1'].rec_price)
