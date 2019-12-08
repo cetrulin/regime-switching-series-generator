@@ -309,7 +309,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     state_counter = 0
 
     logging.info('Start of the context-switching generative process:')
-    it_counter = logging_it_counter = 0
+    it_counter = aux_current_it_counter = 0
     while it_counter < tool_params['periods']:
         # print(f'IT COUNTER IS: {it_counter} periods: {tool_params["periods"]}')
         # 1 Start forecasting in 1 step horizons using the current model
@@ -324,7 +324,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         #       f'IT_COUNTER: {it_counter}')
         # print(w[0])
         if (tool_params['use_transition_map']) & (w[0] == 1) & \
-                (new_switch_type.value < 0) & (it_counter >= max(current_model.get_lags())):
+                (new_switch_type.value < 0):  #  & (it_counter >= max(current_model.get_lags())):
             next_drift = get_next_switch(it_counter, tool_params)
             next_fcst_horizon = next_drift if it_counter < next_drift else tool_params['periods']
             if it_counter < next_fcst_horizon:
@@ -336,7 +336,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         # print(it_counter)
         # print(w[0])
         old_model_forecast = current_model.forecast(list(current_model.input_ts)
-                                                    if it_counter < max(current_model.get_lags()) else list(ts),
+                                                    if aux_current_it_counter < max(current_model.get_lags()) else list(ts),
                                                     armagarch_lib, tool_params['roll_window_size'], n_steps)
 
         # 2 In case of switch, select a new model and reset weights: (1.0, 0.0) at the start (no changes) by default.
@@ -353,7 +353,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
             sig_w = (gutils.get_sigmoid()[int(w[0]*100)], 1 - gutils.get_sigmoid()[int(w[0]*100)])  # kernel to sig func
 
         # 3 Log switches and events
-        rc.append(get_event_dict(logging_it_counter, current_model, new_model,
+        rc.append(get_event_dict(aux_current_it_counter, current_model, new_model,
                                  new_switch_type, switch_type, tool_params,
                                  sig_w if use_sig_w else w))
         assert (sig_w[0] + sig_w[1] if use_sig_w else w[0] + w[1]) == 1
@@ -363,7 +363,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
             # print('Update weights:')
             # Forecast and expand current series (current model is the old one, this becomes current when weight == 1)
             new_model_forecast = new_model.forecast(list(new_model.input_ts)
-                                                    if it_counter < max(new_model.get_lags()) else list(ts),
+                                                    if aux_current_it_counter < max(new_model.get_lags()) else list(ts),
                                                     armagarch_lib, tool_params['roll_window_size'])
             assert len(old_model_forecast) == 1 & len(new_model_forecast) == 1, \
                 'Lenght of forec' \
@@ -392,7 +392,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         # print(f'len {len(ts)}:: {ts[-1]}')
         state_counter = state_counter + 1
         it_counter = it_counter + 1
-        logging_it_counter = it_counter
+        aux_current_it_counter = it_counter
         logging.info(f'Period {it_counter}: {ts[-1]}')
 
     # 4 Plot simulations
