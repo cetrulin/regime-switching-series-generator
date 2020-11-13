@@ -13,7 +13,7 @@ TIME_HORIZON = 1  # fixed / static TODO
 
 def tsplot(y: pd.Series(), lags: list() = None, figsize: tuple = (15, 10), style: str = 'bmh'):
     """
-    Function that plot correlation accross time steps / lags of the time series to allow exploration.
+    Function that plots correlation accross time steps / lags of the time series to allow exploration.
     :param y: time series fed
     :param lags: list of lags
     :param figsize: size

@@ -181,6 +181,14 @@ class Model:
         :param lib_conf: TSpackage for R library to use
         :param roll: max-size of rolling window fed to forecast
         :param n_steps: number of steps ahead forecasted
+        out_sample: Optional.
+            If a specification object is supplied, indicates how many data points to keep for out of sample testing.
+        n.roll argument which controls how many times to roll the n.ahead forecast.
+            The default argument of n.roll = 0 denotes no rolling and returns the standard n.ahead forecast.
+            Critically, since n.roll depends on data being available from which to base the rolling forecast,
+            the ugarchfit function needs to be called with the argument out.sample being at least as large as
+            the n.roll argument, or in the case of a specification being used instead of a fit object,
+            the out.sample argument directly in the forecast function.
         :return forecast or the next time horizon
         """
         self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
