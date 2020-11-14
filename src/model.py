@@ -10,6 +10,18 @@ import rpy2.robjects as robjects
 from rpy2.robjects import numpy2ri
 from rpy2.robjects.packages import importr
 
+# For logging
+import calendar
+import time
+import logging
+import os
+
+timestamp = calendar.timegm(time.gmtime())
+log_filename = f"logs/model_{timestamp}.log"
+os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+logging.basicConfig(filename=log_filename, filemode='w', level=logging.INFO)
+file_handler = logging.FileHandler(log_filename, mode="w", encoding=None, delay=False)
+
 
 @dataclass
 class Model:
@@ -170,6 +182,8 @@ class Model:
             except Exception:
                 continue
         print(f'////////////\nBEST Model {self.id} p={p} -> aic: {best_aic:6.5f} | order: {best_order}\n////////////')
+        logging.info(f'////////////\nBEST Model {self.id} p={p} -> aic: {best_aic:6.5f} | order: {best_order}\n////////////')
+
         self.rugarch_lib_instance = None
         return {'aic': best_aic, 'mdl': best_mdl, 'order': best_order}, p
 
