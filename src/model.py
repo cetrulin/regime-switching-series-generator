@@ -11,16 +11,16 @@ from rpy2.robjects import numpy2ri
 from rpy2.robjects.packages import importr
 
 # For logging
-import calendar
-import time
-import logging
-import os
+# import calendar
+# import time
+# import logging
+# import os
 
-timestamp = calendar.timegm(time.gmtime())
-log_filename = f"logs/output_{timestamp}.log"
-os.makedirs(os.path.dirname(log_filename), exist_ok=True)
-logging.basicConfig(filename=log_filename, filemode='w', level=logging.INFO)
-file_handler = logging.FileHandler(log_filename, mode="w", encoding=None, delay=False)
+# timestamp
+# log_filename = f"logs/output_{timestamp}.log"
+# os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+# logging.basicConfig(filename=log_filename, filemode='w', level=logging.INFO)
+# file_handler = logging.FileHandler(log_filename, mode="w", encoding=None, delay=False)
 
 
 @dataclass
@@ -34,6 +34,8 @@ class Model:
     rec_price: float  # init price for reconstruction from returns
     probability: float
     ARMAGARCH_preconf: list()
+    multiplier: int
+    log: list()
 
     # Define fitted params
     p = 0
@@ -61,6 +63,13 @@ class Model:
     #         self.o, self.p, self.q, self.g_p, self.g_q = self.ARMAGARCH_preconf
     #         return True
     #     return False
+
+    def export_log(self):
+        import csv
+        with open(f'C:\\Users\\suare\\PycharmProjects\\RegimeSwitchingSeriesGenerator\\logs\\params_mdl_{id}',
+                  'wb') as myfile:
+            wr = csv.writer(myfile, quoting=csv.QUOTE_ALL)   # TODO: not to hardcode this
+            wr.writerow(self.log)
 
     def fit(self, current_series, lib_conf,  p_=1, q_=1, garch_param1=1, garch_param2=1):
         """
@@ -121,7 +130,8 @@ class Model:
         else:
             # Fitting in parallel according to the ARMA value 'p'.
             pool = multiprocessing.Pool(processes=conf['pq_rng'])
-            mapped = pool.map(partial(self.param_search, conf, current_series, lib_conf), range(1, conf['pq_rng'] + 1))
+            mapped = pool.map(partial(self.param_search, conf, current_series, lib_conf),
+                              range(conf['init_p'], conf['pq_rng'] + 1))
             best_models_dict = dict(map(reversed, tuple(mapped)))
 
             # Retrieving the best result across all threads (each value of p)
@@ -143,8 +153,7 @@ class Model:
     def param_search(self, conf, current_series, lib_conf, p):
         best_aic, best_order, best_mdl = np.inf, None, None
         self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
-
-        for q, g_p, g_q in itertools.product(range(conf['init_p'], conf['pq_rng'] + 1),
+        for q, g_p, g_q in itertools.product(range(1, conf['pq_rng'] + 1),
                                              range(1, conf['garch_pq_rng'] + 1),
                                              range(1, conf['garch_pq_rng'] + 1)):
             try:
@@ -175,6 +184,8 @@ class Model:
                 tmp_aic, tmp_bic, tmp_sic, tmp_hic = self.get_infocrit(tmp_mdl)
                 print(f'Trying params: {(p, 0, q, g_p, g_q)} on model {self.id} - '
                       f'AIC: {tmp_aic:6.5f} | BIC: {tmp_bic:6.5f} | SIC: {tmp_sic:6.5f} | HQIC: {tmp_hic:6.5f}')
+                self.log.append(f'{self.id};{p};{tmp_aic};{tmp_bic};{tmp_sic};{tmp_hic};{best_order};PATH_MODEL_{self.id}_HERE;0')
+
                 if tmp_aic < best_aic:
                     best_aic = tmp_aic
                     best_order = (p, 0, q, g_p, g_q)  # o = 0 in ARMAGARCH
@@ -182,10 +193,10 @@ class Model:
             except Exception:
                 continue
         print(f'////////////\nBEST Model {self.id} p={p} -> aic: {best_aic:6.5f} | order: {best_order}\n////////////')
-        logging.info(f'////////////\nBEST Model {self.id} p={p} -> aic: {best_aic:6.5f} | order: {best_order}\n////////////')
-
+        # self.logging.info(f'////////////\nBEST Model {self.id} p={p} -> aic: {best_aic:6.5f} | order: {best_order}\n////////////')
+        self.log.append(f'{self.id};{p};{tmp_aic};{tmp_bic};{tmp_sic};{tmp_hic};{best_order};PATH_MODEL_{self.id}_HERE;1')
         self.rugarch_lib_instance = None
-        return {'aic': best_aic, 'mdl': best_mdl, 'order': best_order}, p
+        return {'aic': best_aic, 'mdl': best_mdl, 'order': best_order}, p, log
 
     def forecast(self, ts: list(), lib_conf, roll: int = 1000, n_steps: int = 1):
         """
