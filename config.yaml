@@ -189,9 +189,9 @@ input:  # model-related
 #    - [4, 'efts\\5min-level\\DOWJONES\\DOWJONES_[2015-08-01_to_2015-08-31]_market_hours.csv', [10,0,5,2,1], 0.25]  # 2, 0, 5, 2, 1 aug 2015 only
 # new sets 1
     - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [1, 0, 1, 4, 3], 0.25, -1] # descending
-    - [2, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwm20171011T1854.csv', [-1], 0.25] # lateral (start/end up)
-    - [3, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwo20170607T1613.csv', [-1], 0.25] # lateral (start/end low)
-    - [4, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\mdy20180911T1138.csv', [-1], 0.25] # ascending
+    - [2, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwm20171011T1854.csv', [-1], 0.25, -1] # lateral (start/end up)
+    - [3, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwo20170607T1613.csv', [-1], 0.25, -1] # lateral (start/end low)
+    - [4, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\mdy20180911T1138.csv', [-1], 0.25, -1] # ascending
 
   # end of added on 08/11/2020
 #  cols: ['Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Suspicious']
