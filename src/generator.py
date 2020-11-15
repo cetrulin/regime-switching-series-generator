@@ -11,12 +11,19 @@ import multiprocessing
 from functools import partial
 from src import generator_utils as gutils
 from src.model import Model
-
+from matplotlib import pyplot as plt
+import calendar
+import time
 MODEL_DICT_NAMES = 'fitted_'
 
 # Logger
-logging.basicConfig()
-logging.getLogger().setLevel(logging.INFO)
+# logging.basicConfig()
+# logging.getLogger().setLevel(logging.INFO)
+timestamp = calendar.timegm(time.gmtime())
+log_filename = f"logs/output_{timestamp}.log"
+os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+logging.basicConfig(filename=log_filename, filemode='w', level=logging.INFO)
+file_handler = logging.FileHandler(log_filename, mode="w", encoding=None, delay=False)
 
 
 class Switch(Enum):
@@ -50,8 +57,9 @@ def instantiate_model(config, show_plt, file_config):
     :return: model and desc tuple
     """
     # 1. Read dataset for model
-    counter, file, preconf, prob = file_config
-    df = pd.read_csv(os.path.join(config['path'], file), sep=';')  # , header=None)
+    print(file_config)
+    counter, file, preconf, prob, multiplier = file_config
+    df = pd.read_csv(os.path.join(config['path'], file), sep=config['sep'])  # , header=None)
     # df.columns = config['cols']
     df.set_index(keys=config['index_col'], drop=True, inplace=True)
 
@@ -67,11 +75,15 @@ def instantiate_model(config, show_plt, file_config):
         gutils.plot_input(raw_returns_series, 'Returns')
 
     # 3. Prepare Model and return it to be added to a dictionary
-    return Model(id=counter, raw_input_path=os.path.join(config['path'], file),
-                 input_ts=gutils.prepare_raw_series(config['parsing_mode'], raw_series),
-                 rec_price=list(raw_series[config['sim_col']])[-1],  # last fitting price will be used for reconstruction
-                 probability=prob,
-                 ARMAGARCH_preconf=preconf),  f'{MODEL_DICT_NAMES}{counter}'
+    mdl = Model(id=counter, raw_input_path=os.path.join(config['path'], file),
+                input_ts=gutils.prepare_raw_series(config['parsing_mode'], raw_series),
+                log=[],
+                rec_price=list(raw_series[config['sim_col']])[-1],  # last fitting price will be used for reconstruction
+                probability=prob,
+                multiplier=multiplier,
+                ARMAGARCH_preconf=preconf)
+    # mdl.set_log(logging)
+    return mdl,  f'{MODEL_DICT_NAMES}{counter}'
 
 
 def instantiate_models(config: dict(), show_plt: bool = True):
@@ -176,6 +188,7 @@ def fit_models(series_dict: dict(), input_data_conf: dict(), params: dict(),
     n_threads = 4
     pool = gutils.MyPool(n_threads)  # multiprocessing.Pool(processes=len(input_data_conf['files']))
     mapped = pool.map(partial(fit_model, show_plt, params, armagarch_lib), series_dict.items())
+    logging.info('End models...')
     return dict(map(reversed, tuple(mapped)))
 
 
@@ -186,10 +199,12 @@ def update_weights(w, switch_sharpness):
     :param switch_sharpness: speed of changes
     :return: tuple of weights updated.
     """
-    min_sp = 0.005
+    min_sp = 0.0002
     if switch_sharpness < min_sp:
         print(f'Minimum switch abrupcy is {min_sp}, so this is the value being used. ')
         switch_sharpness = min_sp
+    # else:
+    #     print(f'switch_sharpness is {switch_sharpness}')
     incr = switch_sharpness
     w = (w[0] - incr, w[1] + incr)
 
@@ -323,8 +338,12 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         #       f'{w[0]} '
         #       f'IT_COUNTER: {it_counter}')
         # print(w[0])
+
+        # andres: the last condition below shouldn't be in place,
+        # but it helps controlling the first model from over predicting and
+        # therefore control the obtasined results through the whole execution.
         if (tool_params['use_transition_map']) & (w[0] == 1) & \
-                (new_switch_type.value < 0):  #  & (it_counter >= max(current_model.get_lags())):
+                (new_switch_type.value < 0) & (it_counter >= max(current_model.get_lags())):
             next_drift = get_next_switch(it_counter, tool_params)
             next_fcst_horizon = next_drift if it_counter < next_drift else tool_params['periods']
             if it_counter < next_fcst_horizon:
@@ -336,12 +355,15 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         # print(it_counter)
         # print(w[0])
         old_model_forecast = current_model.forecast(list(current_model.input_ts)
-                                                    if aux_current_it_counter < max(current_model.get_lags()) else list(ts),
-                                                    armagarch_lib, tool_params['roll_window_size'], n_steps)
+                                                        if aux_current_it_counter < max(current_model.get_lags())
+                                                        else list(ts), armagarch_lib,
+                                                    tool_params['roll_window_size'],
+                                                    n_steps) * current_model.multiplier
 
         # 2 In case of switch, select a new model and reset weights: (1.0, 0.0) at the start (no changes) by default.
         if new_switch_type.value >= 0:
-            logging.info(f'There is a {new_switch_type.name} switch.')
+            # logging.info(f'There is a {new_switch_type.name} switch.')
+            print(f'There is a {new_switch_type.name} switch.')
             switch_type, switch_shp = new_switch_type, new_switch_shp
             # print(f'switch sharpness: {switch_shp}')
             # 'switch_to' is only used if transition_maps are enabled.
@@ -363,13 +385,18 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
             # print('Update weights:')
             # Forecast and expand current series (current model is the old one, this becomes current when weight == 1)
             new_model_forecast = new_model.forecast(list(new_model.input_ts)
-                                                    if aux_current_it_counter < max(new_model.get_lags()) else list(ts),
-                                                    armagarch_lib, tool_params['roll_window_size'])
+                                                        if aux_current_it_counter < max(new_model.get_lags())
+                                                        else list(ts),
+                                                    armagarch_lib,
+                                                    tool_params['roll_window_size']) * new_model.multiplier
+
             assert len(old_model_forecast) == 1 & len(new_model_forecast) == 1, \
                 'Lenght of forec' \
                 'asts shouldn\'t be greater than 1 during a switch'
             ts.append(old_model_forecast[0] * (sig_w[0] if use_sig_w else w[0]) +
                       new_model_forecast[0] * (sig_w[1] if use_sig_w else w[1]))
+            # ts.append(np.mean([old_model_forecast[0] * (sig_w[0] if use_sig_w else w[0]),
+            #                   new_model_forecast[0] * (sig_w[1] if use_sig_w else w[1])]))
 
             w = update_weights(w, switch_shp[switch_type.value])
             sig_w = (gutils.get_sigmoid()[int(w[0]*100)], 1 - gutils.get_sigmoid()[int(w[0]*100)])  # kernel to sig func
@@ -383,17 +410,41 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
                 sig_w = reset_weights()
                 switch_type = Switch.NONE
 
-        # 3. Otherwise, use the current forecast
+                # ####################
+                # Export current state
+                # ####################
+                tsa = pd.DataFrame(ts)
+                tsa.plot()
+                plt.show()
+                plt.savefig(f"logs/output_ret_{timestamp}.png")
+                rec_tsa = gutils.reconstruct(tsa, init_val=140)
+                rec_tsa.plot()
+                plt.show()
+                # plt.savefig(f"logs/output_price_{timestamp}.png")
+                # tsa.to_csv(f"logs/output_{timestamp}.csv")
+                # print('End of stich')
+                # ####################
+
+
+
+
+
+        # 5. Otherwise, use the current forecast
         else:
+            i = 1
             for om_fcst_pos in old_model_forecast:
                 ts.append(om_fcst_pos)
+                if i < len(old_model_forecast):  # not logging last pos as it gets logged after this (to avoid logging repeated values)
+                    logging.info(f':{om_fcst_pos}')
+                i += 1
                 # print(om_fcst_pos)
         # if len(ts) % 100 == 0:
         # print(f'len {len(ts)}:: {ts[-1]}')
         state_counter = state_counter + 1
         it_counter = it_counter + 1
         aux_current_it_counter = it_counter
-        logging.info(f'Period {it_counter}: {ts[-1]}')
+        logging.info(f'Period {it_counter}:{ts[-1]}')
+        print(f'Period {it_counter}: {ts[-1]}')
 
     # 4 Plot simulations
     if show_plt:
@@ -444,7 +495,7 @@ def prepare_and_export(global_params, output_format, rc, ts, reconstruction_pric
 
     # 6 Final simulation (TS created) and a log of the regime changes (RC) to CSV files
     rc[output_format['cols']].to_csv(os.sep.join([output_format['path'],
-                                                  output_format['ts_name'] + str(int(time.time())) + '.csv']),
+                                                  output_format['ts_name'] + str(timestamp) + '.csv']),
                                      index=False)
 
 
@@ -479,7 +530,7 @@ def prepare_and_export_2(global_params, output_format, rc, ts, reconstruction_pr
 
     # 6 Final simulation (TS created) and a log of the regime changes (RC) to CSV files
     rc[output_format['cols']].to_csv(os.sep.join([output_format['path'],
-                                                  output_format['ts_name'] + str(int(time.time())) + '.csv']),
+                                                  output_format['ts_name'] + str(timestamp) + '.csv']),
                                      index=False)
 
 
