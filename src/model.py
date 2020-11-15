@@ -17,7 +17,7 @@ import logging
 import os
 
 timestamp = calendar.timegm(time.gmtime())
-log_filename = f"logs/model_{timestamp}.log"
+log_filename = f"logs/output_{timestamp}.log"
 os.makedirs(os.path.dirname(log_filename), exist_ok=True)
 logging.basicConfig(filename=log_filename, filemode='w', level=logging.INFO)
 file_handler = logging.FileHandler(log_filename, mode="w", encoding=None, delay=False)
@@ -144,7 +144,7 @@ class Model:
         best_aic, best_order, best_mdl = np.inf, None, None
         self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
 
-        for q, g_p, g_q in itertools.product(range(1, conf['pq_rng'] + 1),
+        for q, g_p, g_q in itertools.product(range(conf['init_p'], conf['pq_rng'] + 1),
                                              range(1, conf['garch_pq_rng'] + 1),
                                              range(1, conf['garch_pq_rng'] + 1)):
             try:
