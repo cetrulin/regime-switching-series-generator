@@ -76,11 +76,12 @@ def prepare_raw_series(mode: str, ts: pd.DataFrame()):
     print(f'Min: {min_max_scaler.data_min_[0]}, Max: {min_max_scaler.data_max_[0]}')
 
     if mode == 'returns':  # log returns
-        ts = pd.DataFrame(np.log(ts / ts.shift(1))).reset_index(drop=True)
+        ts = pd.DataFrame(np.log(ts / ts.shift(1))).dropna().reset_index(drop=True)
     else:  # standardization the dataset
-        ts = pd.DataFrame(min_max_scaler.transform(ts)).reset_index(drop=True)
+        ts = pd.DataFrame(min_max_scaler.transform(ts)).dropna().reset_index(drop=True)
 
-    return ts[ts.columns[0]].apply(lambda x: 0 if math.isnan(x) else x)  # the first value = NaN due to the returns
+    # Returning series of ret
+    return ts[ts.columns[0]]  #.apply(lambda x: 0 if math.isnan(x) else x)  # the first value = NaN due to the returns
 
 
 def sigmoid(x):

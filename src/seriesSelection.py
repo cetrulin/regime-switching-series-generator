@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import pandas as pd
+import numpy as np
 from matplotlib import pyplot as plt
 
 config = {
@@ -71,12 +72,19 @@ for symbol in config['symbols']:
         Path(config['output_path']).mkdir(parents=True, exist_ok=True)
         concated_df.to_csv(out_path)
 
-    # TODO: level 30min/hourly/day to reduce noise (maybe daily??)
+    # TODO? level 30min/hourly/day to reduce noise (maybe daily??)
 
     # Parse dataframe
 
     # Generate close price returns and moving average to select the period with a mean close to 0
-    concated_df['close_returns'] = concated_df['close'] / concated_df['close'].shift(1) - 1
+    log_ret = True  # otherwise percentual
+    if log_ret:
+        concated_df['close_returns'] = np.log(concated_df['close'] / concated_df['close'].shift(1))
+        # concated_df['close_returns'] = np.log(1 + concated_df['close'].pct_change())
+    else:
+        # concated_df['close_returns'] = concated_df['close'] / concated_df['close'].shift(1) - 1
+        concated_df['close_returns'] = concated_df['close'].pct_change(1)
+
     sma_col = f"SMA_{config['desired_length']}"
     concated_df[sma_col] = \
         concated_df['close_returns'].rolling(window=config['desired_length']).mean()
@@ -117,4 +125,8 @@ for symbol in config['symbols']:
         current_selection_df.close_returns.hist(bins=100, alpha=0.5)
         plt.xticks(rotation=45)
         plt.savefig(export_path+'_returns_histogram.png')
+        plt.show()
+        plt.boxplot(current_selection_df.close_returns, label=["Close price returns"])
+        plt.xticks(rotation=45)
+        plt.savefig(export_path+'_returns_.png')
         plt.show()
