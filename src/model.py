@@ -44,6 +44,7 @@ class Model:
     g_p = 0
     g_q = 0
     ARMAGARCHspec = None
+    ARMAGARCHfitted = None
 
     def get_lags(self):
         """ This function returns a list of lags (p, o, q) for the current model. """
@@ -108,6 +109,7 @@ class Model:
             assert alpha + beta < 1  # this ensures that the predicted variance always returns to the long run variance
 
             self.ARMAGARCHspec = self.get_spec(model)
+            self.ARMAGARCHfitted = model  # for ugarchsim
             self.rugarch_lib_instance = None
         except Exception:
             print(f'Model{model} does not fit for the desired params.')
@@ -130,8 +132,10 @@ class Model:
         else:
             # Fitting in parallel according to the ARMA value 'p'.
             pool = multiprocessing.Pool(processes=conf['pq_rng'])
+            # TODO: we may want to change the multiprocessing library so calls to it are more understandable/
+            #  can we return objects easily there though?
             mapped = pool.map(partial(self.param_search, conf, current_series, lib_conf),
-                              range(conf['init_p'], conf['pq_rng'] + 1))
+                              range(conf['init_p'], conf['pq_rng'] + 1, conf['pq_rng_steps']))
             best_models_dict = dict(map(reversed, tuple(mapped)))
 
             # Retrieving the best result across all threads (each value of p)
@@ -144,6 +148,7 @@ class Model:
         """
         best_aic = np.inf
         for i in best_models_dict.values():  # small loop to reduce results from map function
+            # TODO: we may want to optimize here by reconstruction MAE/RMSE and keep both best ones.
             if i['aic'] < best_aic:  # This must be consistent with the same comparison in each thread
                 best_aic = i['aic']
                 best_order = i['order']
@@ -152,8 +157,9 @@ class Model:
 
     def param_search(self, conf, current_series, lib_conf, p):
         best_aic, best_order, best_mdl = np.inf, None, None
-        self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
-        for q, g_p, g_q in itertools.product(range(1, conf['pq_rng'] + 1),
+        self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])\
+        # for q, g_p, g_q in itertools.product(range(1, conf['pq_rng'] + 1),
+        for q, g_p, g_q in itertools.product(range(1, conf['pq_rng'] + 1, conf['pq_rng_steps']),  # range(10, 31),
                                              range(1, conf['garch_pq_rng'] + 1),
                                              range(1, conf['garch_pq_rng'] + 1)):
             try:
@@ -185,6 +191,7 @@ class Model:
                 print(f'Trying params: {(p, 0, q, g_p, g_q)} on model {self.id} - '
                       f'AIC: {tmp_aic:6.5f} | BIC: {tmp_bic:6.5f} | SIC: {tmp_sic:6.5f} | HQIC: {tmp_hic:6.5f}')
                 self.log.append(f'{self.id};{p};{tmp_aic};{tmp_bic};{tmp_sic};{tmp_hic};{best_order};PATH_MODEL_{self.id}_HERE;0')
+                # TODO: return reconstruction MAE/RMSE too.
 
                 if tmp_aic < best_aic:
                     best_aic = tmp_aic
@@ -196,7 +203,7 @@ class Model:
         # self.logging.info(f'////////////\nBEST Model {self.id} p={p} -> aic: {best_aic:6.5f} | order: {best_order}\n////////////')
         self.log.append(f'{self.id};{p};{tmp_aic};{tmp_bic};{tmp_sic};{tmp_hic};{best_order};PATH_MODEL_{self.id}_HERE;1')
         self.rugarch_lib_instance = None
-        return {'aic': best_aic, 'mdl': best_mdl, 'order': best_order}, p, log
+        return {'aic': best_aic, 'mdl': best_mdl, 'order': best_order}, p
 
     def forecast(self, ts: list(), lib_conf, roll: int = 1000, n_steps: int = 1):
         """
@@ -217,16 +224,24 @@ class Model:
         :return forecast or the next time horizon
         """
         self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
-        forecast = self.rugarch_lib_instance.ugarchforecast(self.ARMAGARCHspec,
-                                                            # Rolling window of latest 1000 values to avoid huge values
-                                                            #  in forecasts when switching some models.
-                                                            data=ts[-roll:] if len(ts) > roll else ts,
-                                                            n_ahead=n_steps, n_roll=0, out_sample=0)
+        # forecast = self.rugarch_lib_instance.ugarchforecast(fit=self.ARMAGARCHspec,
+        #                                                    # Rolling window of latest 1000 values to avoid huge values
+        #                                                     #  in forecasts when switching some models.
+        #                                                     data=ts[-roll:] if len(ts) > roll else ts,
+        #                                                     n_ahead=n_steps, n_roll=0, out_sample=0)
+        # self.rugarch_lib_instance = None
+        # return np.array(forecast.slots['forecast'].rx2('seriesFor')).flatten()  # n_steps
         # print(f'len: {len(ts)}')
         # print(f'len: {len(ts)}  - {np.array(forecast.slots["forecast"].rx2("seriesFor")).flatten()[0]}')
-
+        # The main difference between uGARCHforecast and uGARCHsim is that the second one has a random seed.
+        # Thus, each simulartion can change.
+        # ugarchpath does the same than uGARCHsim but receiving a GARCH spec instead of a fitted objetd.
+        simulation = self.rugarch_lib_instance.ugarchsim(fit=self.ARMAGARCHfitted, n_sim=n_steps, m_sim=1,
+                                                         prereturns=ts[-roll:] if len(ts) > roll else ts)
+        # simulation = self.rugarch_lib_instance.ugarchpath(fit=self.ARMAGARCHspec, n_sim=n_steps, m_sim=1,
+        #                                                 prereturns=ts[-roll:] if len(ts) > roll else ts)  # equivalent
         self.rugarch_lib_instance = None
-        return np.array(forecast.slots['forecast'].rx2('seriesFor')).flatten()  # n_steps
+        return np.array(simulation.slots['simulation'].rx2('seriesSim')).flatten()  # n_steps
 
     def set_spec_from_model(self, model):
         """ This function sets an spec of a fitted model into the object."""

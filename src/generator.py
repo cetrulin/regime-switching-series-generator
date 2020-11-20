@@ -326,6 +326,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     logging.info('Start of the context-switching generative process:')
     it_counter = aux_current_it_counter = 0
     while it_counter < tool_params['periods']:
+        print(it_counter)
         # print(f'IT COUNTER IS: {it_counter} periods: {tool_params["periods"]}')
         # 1 Start forecasting in 1 step horizons using the current model
         n_steps = 1
@@ -355,10 +356,10 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         # print(it_counter)
         # print(w[0])
         old_model_forecast = current_model.forecast(list(current_model.input_ts)
-                                                        if aux_current_it_counter < max(current_model.get_lags())
+                                                        if aux_current_it_counter < (max(current_model.get_lags()) + 2)
                                                         else list(ts), armagarch_lib,
                                                     tool_params['roll_window_size'],
-                                                    n_steps) * current_model.multiplier
+                                                    n_steps)  # *  current_model.multiplier
 
         # 2 In case of switch, select a new model and reset weights: (1.0, 0.0) at the start (no changes) by default.
         if new_switch_type.value >= 0:
@@ -388,7 +389,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
                                                         if aux_current_it_counter < max(new_model.get_lags())
                                                         else list(ts),
                                                     armagarch_lib,
-                                                    tool_params['roll_window_size']) * new_model.multiplier
+                                                    tool_params['roll_window_size'])  # * new_model.multiplier
 
             assert len(old_model_forecast) == 1 & len(new_model_forecast) == 1, \
                 'Lenght of forec' \
@@ -420,19 +421,15 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
                 rec_tsa = gutils.reconstruct(tsa, init_val=140)
                 rec_tsa.plot()
                 plt.show()
-                # plt.savefig(f"logs/output_price_{timestamp}.png")
+                plt.savefig(f"logs/output_price_{timestamp}.png")
                 # tsa.to_csv(f"logs/output_{timestamp}.csv")
                 # print('End of stich')
                 # ####################
 
-
-
-
-
         # 5. Otherwise, use the current forecast
         else:
             i = 1
-            for om_fcst_pos in old_model_forecast:
+            for om_fcst_pos in (old_model_forecast * current_model.multiplier):
                 ts.append(om_fcst_pos)
                 if i < len(old_model_forecast):  # not logging last pos as it gets logged after this (to avoid logging repeated values)
                     logging.info(f':{om_fcst_pos}')
