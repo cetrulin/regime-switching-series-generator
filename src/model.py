@@ -4,6 +4,7 @@ import itertools
 import multiprocessing
 from functools import partial
 from dataclasses import dataclass
+from sklearn import metrics
 
 # RPY packages to run rugarch in python
 import rpy2.robjects as robjects
