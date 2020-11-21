@@ -44,6 +44,7 @@ def parse_yaml():
         plot = config['plot']
         armagarch_lib = {'lib': 'rugarch', 'env': config['env']['r_libs_path']}
         print(config)
+        logging.info(config)
 
     return input_data_config, global_params, out_format, armagarch_lib, plot
 
