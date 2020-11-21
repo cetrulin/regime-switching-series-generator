@@ -416,11 +416,11 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
                 # ####################
                 tsa = pd.DataFrame(ts)
                 tsa.plot()
-                plt.show()
+                # plt.show()
                 plt.savefig(f"logs/output_ret_{timestamp}.png")
                 rec_tsa = gutils.reconstruct(tsa, init_val=140)
                 rec_tsa.plot()
-                plt.show()
+                # plt.show()
                 plt.savefig(f"logs/output_price_{timestamp}.png")
                 # tsa.to_csv(f"logs/output_{timestamp}.csv")
                 # print('End of stich')

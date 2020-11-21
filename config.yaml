@@ -189,13 +189,34 @@ input:  # model-related
 #    - [3, 'xrp\\RIPPLE_[2019-07-01_to_2019-08-01]_5min.csv', [9, 0, 10, 1, 3], 0.25]  # first half of july 2019 only  # 4, 0, 5, 2, 4
 #    - [4, 'efts\\5min-level\\DOWJONES\\DOWJONES_[2015-08-01_to_2015-08-31]_market_hours.csv', [10,0,5,2,1], 0.25]  # 2, 0, 5, 2, 1 aug 2015 only
 # new sets 1
-    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [1, 0, 1, 4, 3], 0.25, -1] # descending
-#    - [2, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwm20171011T1854.csv', [43, 0, 3, 4, 5], 0.25, -1] # lateral - flat: it was supposed to start/end up... FAT TAILS!!
-    - [2, 'C:\\Users\\suare\\data\\tmp\\selection\\spxl20180524T1550.csv', [30, 0, 18, 2, 2], 0.25, -4] # STILL TO BE IMPROVED. # lateral -start/end up (goes down at the middle end, but goes up again)
-#    - [3, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwo20170607T1613.csv', [38, 0, 22, 1, 5], 0.25, -3] # lateral (start/end low) # TODO: confirm best value looking at notebook
-    - [3, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwo20170607T1613.csv', [43, 0, 23, 2, 5], 0.25, -1] # lateral (start/end low) # TODO: confirm best value looking at notebook
-#    - [4, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\mdy20180911T1138.csv', [25, 0, 1, 3, 3], 0.25, -1] # ascending  ## not able to fit it.... it may need a longer param exploration (maybe I could start with a random search or greater values directly ina more spaced grid search)
-    - [4, 'C:\\Users\\suare\\data\\tmp\\selection\\vv20171101T1523.csv', [40, 0, 1, 5, 4], 0.25, -2.5] # ascending
+#    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [1, 0, 1, 4, 3], 0.25, -1] # descending
+##    - [2, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwm20171011T1854.csv', [43, 0, 3, 4, 5], 0.25, -1] # lateral - flat: it was supposed to start/end up... FAT TAILS!!
+#    - [2, 'C:\\Users\\suare\\data\\tmp\\selection\\spxl20180524T1550.csv', [30, 0, 18, 2, 2], 0.25, -4] # STILL TO BE IMPROVED. # lateral -start/end up (goes down at the middle end, but goes up again)
+##    - [3, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwo20170607T1613.csv', [38, 0, 22, 1, 5], 0.25, -3] # lateral (start/end low) # TODO: confirm best value looking at notebook
+#    - [3, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwo20170607T1613.csv', [43, 0, 23, 2, 5], 0.25, -1] # lateral (start/end low) # TODO: confirm best value looking at notebook
+##    - [4, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\mdy20180911T1138.csv', [25, 0, 1, 3, 3], 0.25, -1] # ascending  ## not able to fit it.... it may need a longer param exploration (maybe I could start with a random search or greater values directly ina more spaced grid search)
+#    - [4, 'C:\\Users\\suare\\data\\tmp\\selection\\vv20171101T1523.csv', [40, 0, 1, 5, 4], 0.25, -2.5] # ascending
+# ###################################
+#    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [1, 0, 1, 4, 3], 0.25, 1] # descending
+#    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [30, 0, 18, 2, 2], 0.25, -1] # descending
+#    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [1, 0, 34, 2, 2], 0.25, -1] # descending
+#    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [20, 0, 4, 2, 2], 0.25, 1] # descending
+#    - - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [20, 0, 4, 2, 2], 0.25, -1] # descending
+#    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [10, 0, 39, 1, 1], 0.25, 1] # descending
+
+      # ############################
+      # ############################
+#    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [18, 0, 27, 2, 2], 0.25, 1] # descending
+#    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [17, 0, 22, 1, 1], 0.25, 1] # descending
+#    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [12, 0, 26, 1, 1], 0.25, 1] # descending
+#    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [11, 0, 43, 1, 1], 0.25, 1] # descending
+    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [26, 0, 31, 2, 2], 0.25, 1] # descending
+    #    - [2, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwm20171011T1854.csv', [43, 0, 3, 4, 5], 0.25, -1] # lateral - flat: it was supposed to start/end up... FAT TAILS!!
+    - [2, 'C:\\Users\\suare\\data\\tmp\\selection\\spxl20180524T1550.csv', [30, 0, 18, 2, 2], 0.25, 1] #-2] # STILL TO BE IMPROVED. # lateral -start/end up (goes down at the middle end, but goes up again)
+    #    - [3, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwo20170607T1613.csv', [38, 0, 22, 1, 5], 0.25, -3] # lateral (start/end low) # TODO: confirm best value looking at notebook
+    - [3, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwo20170607T1613.csv', [43, 0, 23, 2, 5], 0.25, 1] # -1] # lateral (start/end low) # TODO: confirm best value looking at notebook
+    #    - [4, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\mdy20180911T1138.csv', [25, 0, 1, 3, 3], 0.25, -1] # ascending  ## not able to fit it.... it may need a longer param exploration (maybe I could start with a random search or greater values directly ina more spaced grid search)
+    - [4, 'C:\\Users\\suare\\data\\tmp\\selection\\vv20171101T1523.csv', [40, 0, 1, 5, 4], 0.25, 1]  # -2.5] # ascending
 
   # end of added on 08/11/2020
 #  cols: ['Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Suspicious']
