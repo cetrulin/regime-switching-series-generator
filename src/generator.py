@@ -170,7 +170,7 @@ def fit_model(show_plt: bool, tool_params: dict(), armagarch_lib: dict(), series
                           current_model.p, current_model.q, current_model.g_p, current_model.g_q)  # not needed
         logging.info('model {} -> aic: {:6.5f} | order: {}'.format(current_model.id, best_aic, best_order))
         print('log is:')
-        if len(current_model.log) > 0:
+        if len(current_model.param_log) > 0:
             # TODO: see how to fix param_log.csv. it gets here empty
             pd.DataFrame({'id;p;aic;bic;sic;hic;coefficients;PATH_MODEL;is_best':
                           current_model.log}).to_csv(f"logs/po_{timestamp}_mdl-{current_model.id}.csv")
