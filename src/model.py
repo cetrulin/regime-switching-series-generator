@@ -17,12 +17,15 @@ from rpy2.robjects.packages import importr
 # import logging
 # import os
 
-# timestamp
-# log_filename = f"logs/output_{timestamp}.log"
-# os.makedirs(os.path.dirname(log_filename), exist_ok=True)
-# logging.basicConfig(filename=log_filename, filemode='w', level=logging.INFO)
-# file_handler = logging.FileHandler(log_filename, mode="w", encoding=None, delay=False)
-
+""" 
+This function sets the fitted parameters in a rugarch spec. 
+@:param fitted: fitted model
+"""
+get_spec = robjects.r('''function(fitted) {
+                                spec=getspec(fitted)
+                                setfixed(spec) <- as.list(coef(fitted))
+                                return(spec)
+                             }''')
 
 @dataclass
 class Model:
@@ -36,7 +39,7 @@ class Model:
     probability: float
     ARMAGARCH_preconf: list()
     multiplier: int
-    log: list()
+    param_log: list()
 
     # Define fitted params
     p = 0
@@ -44,12 +47,49 @@ class Model:
     q = 0
     g_p = 0
     g_q = 0
+    coef = list()
+    coef_names = list()
     ARMAGARCHspec = None
     ARMAGARCHfitted = None
+
+    """ 
+    This function sets the fitted parameters in a rugarch spec. 
+    @:param fitted: fitted model
+    """
+    get_spec = robjects.r('''function(fitted) {
+                                spec=getspec(fitted)
+                                setfixed(spec) <- as.list(coef(fitted))
+                                return(spec)
+                             }''')
+
+    """
+    This function gets the information criteria of a given fitted model.
+    @:return vector of 4 pos containing 4 metrics: [Akaike (AIC), Bayes (BIC), Shibata, Hannan - Quinn ]
+    """
+    get_infocrit = robjects.r('''function(fitted) {
+                                    return(infocriteria(fitted))
+                                 }''')
 
     def get_lags(self):
         """ This function returns a list of lags (p, o, q) for the current model. """
         return [self.p, self.o, self.q]
+
+    def set_coef(self, coef):
+        self.coef_names = \
+            ['mu', 'ar1', 'ar2', 'ar3', 'ar4', 'ma1', 'ma2', 'ma3', 'omega', 'alpha', 'beta', 'skw', 'shape']
+        self.coef = coef
+
+    def set_spec_from_model(self, model):
+        """ This function sets an spec of a fitted model into the object."""
+        self.ARMAGARCHspec = get_spec(model)
+        # self.rugarch_lib_instance = None   # added on 22/11/2020
+
+    def get_orders(self):
+        """ This function returns a list of lags (p, o, q),(g_p, g_q) for the current model. """
+        return [self.p, self.o, self.q, self.g_p, self.g_q]
+
+    def get_param_log(self):
+        return self.param_log
 
     def set_lags(self, p_, o_, q_, g_p_=1, g_q_=1):
         """ This function sets a list of lags (p, o, q) for the current model and lags also for GARCH g_pq."""
@@ -103,12 +143,13 @@ class Model:
             )
             numpy2ri.deactivate()
             # Checks
-            coef = model.slots['fit'].rx2('coef')  # this gives a vector of coefficients
+            self.coef = model.slots['fit'].rx2('coef')  # this gives a vector of coefficients
+            self.coef_names = ['mu', 'ar1', 'ar2', 'ar3', 'ar4', 'ma1', 'ma2', 'ma3', 'omega', 'alpha', 'beta', 'skw', 'shape']
+
             # [mu, ar1, ar2, ar3, ar4, ma1, ma2, ma3, omega, alpha, beta, skw, shape]
-            omega, alpha, beta = coef[-5], coef[-4], coef[-3]
+            omega, alpha, beta = self.coef[-5], self.coef[-4], self.coef[-3]
             assert omega > 0 and alpha > 0 and beta > 0  # this ensures that the predicted variance > 0 at all times.
             assert alpha + beta < 1  # this ensures that the predicted variance always returns to the long run variance
-
             self.ARMAGARCHspec = self.get_spec(model)
             self.ARMAGARCHfitted = model  # for ugarchsim
             self.rugarch_lib_instance = None
@@ -129,7 +170,7 @@ class Model:
         if (len(self.ARMAGARCH_preconf) == 5) & (self.ARMAGARCH_preconf[0] > -1):
             p, o, q, p_g, q_g = self.ARMAGARCH_preconf
             return 0.0, self.ARMAGARCH_preconf, self.fit(current_series, lib_conf,
-                                                         p_=p, q_=q, garch_param1=p_g, garch_param2=q_g)
+                                                         p_=p, q_=q, garch_param1=p_g, garch_param2=q_g), self.coef
         else:
             # Fitting in parallel according to the ARMA value 'p'.
             pool = multiprocessing.Pool(processes=conf['pq_rng'])
@@ -140,8 +181,8 @@ class Model:
             best_models_dict = dict(map(reversed, tuple(mapped)))
 
             # Retrieving the best result across all threads (each value of p)
-            best_aic, best_mdl, best_order = self.compute_intermediate_results(best_models_dict)
-            return best_aic, best_order, best_mdl
+            best_aic, best_mdl, best_order, best_coef = self.compute_intermediate_results(best_models_dict)
+        return best_aic, best_order, best_mdl, best_coef
 
     def compute_intermediate_results(self, best_models_dict):
         """
@@ -154,10 +195,11 @@ class Model:
                 best_aic = i['aic']
                 best_order = i['order']
                 best_mdl = i['mdl']
-        return best_aic, best_mdl, best_order
+                best_coef = i['coef']
+        return best_aic, best_mdl, best_order, best_coef
 
     def param_search(self, conf, current_series, lib_conf, p):
-        best_aic, best_order, best_mdl = np.inf, None, None
+        best_aic, best_order, best_mdl, best_coef = np.inf, None, None, []
         self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])\
         # for q, g_p, g_q in itertools.product(range(1, conf['pq_rng'] + 1),
         for q, g_p, g_q in itertools.product(range(1, conf['pq_rng'] + 1, conf['pq_rng_steps']),  # range(10, 31),
@@ -186,25 +228,36 @@ class Model:
                 omega, alpha, beta = coef[-5], coef[-4], coef[-3]
                 cond = omega > 0 and alpha > 0 and beta > 0 and alpha + beta < 1  # print(cond)
                 assert cond
-
+                print(omega, alpha, beta)
                 # [0 AIC, 1 BIC, 2 Shibata, 3 Hannan - Quinn ]
                 tmp_aic, tmp_bic, tmp_sic, tmp_hic = self.get_infocrit(tmp_mdl)
                 print(f'Trying params: {(p, 0, q, g_p, g_q)} on model {self.id} - '
                       f'AIC: {tmp_aic:6.5f} | BIC: {tmp_bic:6.5f} | SIC: {tmp_sic:6.5f} | HQIC: {tmp_hic:6.5f}')
-                self.log.append(f'{self.id};{p};{tmp_aic};{tmp_bic};{tmp_sic};{tmp_hic};{best_order};PATH_MODEL_{self.id}_HERE;0')
+                self.param_log.append(f'{self.id};{p};{tmp_aic};{tmp_bic};{tmp_sic};{tmp_hic};{coef};PATH_MODEL_{self.id}_HERE;0')
                 # TODO: return reconstruction MAE/RMSE too.
-
-                if tmp_aic < best_aic:
+                # print(tmp_aic)
+                # print(best_aic)
+                # print(tmp_aic <= best_aic)
+                if tmp_aic <= best_aic:
                     best_aic = tmp_aic
+                    best_hic = tmp_hic
+                    best_bic = tmp_bic
+                    best_sic = tmp_sic
+                    best_coef = coef
                     best_order = (p, 0, q, g_p, g_q)  # o = 0 in ARMAGARCH
                     best_mdl = tmp_mdl
             except Exception:
+                print(f'Crashed at {(p, 0, q, g_p, g_q)}')
                 continue
-        print(f'////////////\nBEST Model {self.id} p={p} -> aic: {best_aic:6.5f} | order: {best_order}\n////////////')
+        # print(self.param_log)
+        print(f'////////////\nBEST Model {self.id} p={p} -> aic: {best_aic:6.5f} | order: {best_order} | '
+              f'coefficients: {best_coef}\n////////////')
+        # TODO: see how to fix param_log.csv
         # self.logging.info(f'////////////\nBEST Model {self.id} p={p} -> aic: {best_aic:6.5f} | order: {best_order}\n////////////')
-        self.log.append(f'{self.id};{p};{tmp_aic};{tmp_bic};{tmp_sic};{tmp_hic};{best_order};PATH_MODEL_{self.id}_HERE;1')
-        self.rugarch_lib_instance = None
-        return {'aic': best_aic, 'mdl': best_mdl, 'order': best_order}, p
+        self.param_log.append(
+            f'{self.id};{p};{best_aic};{best_bic};{best_sic};{best_hic};{best_coef};PATH_MODEL_{self.id}_HERE;1')
+        self.rugarch_lib_instance = None  # commented out on 22/11/2020
+        return {'aic': best_aic, 'mdl': best_mdl, 'order': best_order, 'coef': best_coef}, p
 
     def forecast(self, ts: list(), lib_conf, roll: int = 1000, n_steps: int = 1):
         """
@@ -224,7 +277,7 @@ class Model:
             the out.sample argument directly in the forecast function.
         :return forecast or the next time horizon
         """
-        self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
+        self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])  # TODO: this could be a bottleneck. maybe dont do this each time
         # forecast = self.rugarch_lib_instance.ugarchforecast(fit=self.ARMAGARCHspec,
         #                                                    # Rolling window of latest 1000 values to avoid huge values
         #                                                     #  in forecasts when switching some models.
@@ -244,24 +297,5 @@ class Model:
         self.rugarch_lib_instance = None
         return np.array(simulation.slots['simulation'].rx2('seriesSim')).flatten()  # n_steps
 
-    def set_spec_from_model(self, model):
-        """ This function sets an spec of a fitted model into the object."""
-        self.ARMAGARCHspec = self.get_spec(model)
 
-    """ 
-    This function sets the fitted parameters in a rugarch spec. 
-    @:param fitted: fitted model
-    """
-    get_spec = robjects.r('''function(fitted) {
-                                spec=getspec(fitted)
-                                setfixed(spec) <- as.list(coef(fitted))
-                                return(spec)
-                             }''')
 
-    """
-    This function gets the information criteria of a given fitted model.
-    @:return vector of 4 pos containing 4 metrics: [Akaike (AIC), Bayes (BIC), Shibata, Hannan - Quinn ]
-    """
-    get_infocrit = robjects.r('''function(fitted) {
-                                    return(infocriteria(fitted))
-                                 }''')

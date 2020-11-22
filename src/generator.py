@@ -16,15 +16,6 @@ import calendar
 import time
 MODEL_DICT_NAMES = 'fitted_'
 
-# Logger
-# logging.basicConfig()
-# logging.getLogger().setLevel(logging.INFO)
-timestamp = calendar.timegm(time.gmtime())
-log_filename = f"logs/output_{timestamp}.log"
-os.makedirs(os.path.dirname(log_filename), exist_ok=True)
-logging.basicConfig(filename=log_filename, filemode='w', level=logging.INFO)
-file_handler = logging.FileHandler(log_filename, mode="w", encoding=None, delay=False)
-
 
 class Switch(Enum):
     NONE = -1
@@ -62,8 +53,11 @@ def instantiate_model(config, show_plt, file_config):
     counter, file, preconf, prob, multiplier = file_config
     df = pd.read_csv(os.path.join(config['path'], file), sep=config['sep'])  # , header=None)
     # df.columns = config['cols']
-    df.set_index(keys=config['index_col'], drop=True, inplace=True)
-
+    try:
+        df.set_index(keys=config['index_col'], drop=True, inplace=True)
+    except:
+        print(df.head())
+        df.set_index(keys=config['index_col'], drop=True, inplace=True)
     # 2. Clean nulls and select series
     raw_series = df[[config['sim_col']]]  # .dropna()
     raw_returns_series = 100 * df[[config['sim_col']]].pct_change()  # .dropna()
@@ -78,16 +72,22 @@ def instantiate_model(config, show_plt, file_config):
     # 3. Prepare Model and return it to be added to a dictionary
     mdl = Model(id=counter, raw_input_path=os.path.join(config['path'], file),
                 input_ts=gutils.prepare_raw_series(config['parsing_mode'], raw_series),
-                log=[],
+                param_log=[],
                 rec_price=list(raw_series[config['sim_col']])[-1],  # last fitting price will be used for reconstruction
                 probability=prob,
                 multiplier=multiplier,
                 ARMAGARCH_preconf=preconf)
     # mdl.set_log(logging)
+    logging.info(f"==========\nLogging ARMAGARCH orders used to fit mdl #{counter} - {file.split(os.sep)[-1]}")
+    logging.info(mdl.get_orders())
+    logging.info(f"----------\n{counter} - {file.split(os.sep)[-1]}")
+    logging.info(mdl.coef_names)
+    logging.info(mdl.coef)
+    logging.info("==========")
     return mdl,  f'{MODEL_DICT_NAMES}{counter}'
 
 
-def instantiate_models(config: dict(), show_plt: bool = True):
+def instantiate_models(input_data_config: dict(), show_plt: bool = True):
     """
     This function loads the initial series to feed them to models.
     :param config: from YAML file
@@ -96,8 +96,8 @@ def instantiate_models(config: dict(), show_plt: bool = True):
     """
     # Load raw time series for the pre-training of the models
     logging.info('Load models...')
-    pool = multiprocessing.Pool(len(config['files']))  # gutils.MyPool(1)
-    mapped = pool.map(partial(instantiate_model, config, show_plt), config['files'])
+    pool = multiprocessing.Pool(len(input_data_config['files']))  # gutils.MyPool(1)
+    mapped = pool.map(partial(instantiate_model, input_data_config, show_plt), input_data_config['files'])
     series_dict = dict(map(reversed, tuple(mapped)))
     return series_dict
 
@@ -160,12 +160,20 @@ def fit_model(show_plt: bool, tool_params: dict(), armagarch_lib: dict(), series
         current_model.fit(current_model.input_ts, armagarch_lib, current_model.p, current_model.q)
 
     elif tool_params['param_search'] == 'ARMA_GARCH':
-        best_aic, best_order, best_model = current_model.get_best(current_model.input_ts, tool_params, armagarch_lib)
+        best_aic, best_order, best_model, best_coef = \
+            current_model.get_best(current_model.input_ts, tool_params, armagarch_lib)
+        # print(f'best coefficients are: {best_coef}')
         current_model.set_lags(*best_order)
-        current_model.set_spec_from_model(best_model)
-        # current_model.fit(current_model.input_ts, armagarch_lib,
-        #                   current_model.p, current_model.q, current_model.g_p, current_model.g_q)  # not needed
+        current_model.set_coef(best_coef)
+        # current_model.set_spec_from_model(best_model)  # this crashes for some reason
+        current_model.fit(current_model.input_ts, armagarch_lib,
+                          current_model.p, current_model.q, current_model.g_p, current_model.g_q)  # not needed
         logging.info('model {} -> aic: {:6.5f} | order: {}'.format(current_model.id, best_aic, best_order))
+        print('log is:')
+        if len(current_model.log) > 0:
+            # TODO: see how to fix param_log.csv. it gets here empty
+            pd.DataFrame({'id;p;aic;bic;sic;hic;coefficients;PATH_MODEL;is_best':
+                          current_model.log}).to_csv(f"logs/po_{timestamp}_mdl-{current_model.id}.csv")
     else:
         logging.critical('param_search must be provided in config.yaml. Values should be "ARMA" or "ARMA_GARCH"\n\n')
 
@@ -341,11 +349,11 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         #       f'IT_COUNTER: {it_counter}')
         # print(w[0])
 
-        # andres: the last condition below shouldn't be in place,
-        # but it helps controlling the first model from over predicting and
-        # therefore control the obtasined results through the whole execution.
-        if (tool_params['use_transition_map']) & (w[0] == 1) & \
-                (new_switch_type.value < 0) & (it_counter >= max(current_model.get_lags())):
+        if (tool_params['use_transition_map']) & (w[0] == 1) & (new_switch_type.value < 0):
+            # andres: This last condition below shouldn't be in place,
+            # but it helps controlling the first model from over predicting and
+            # therefore control the obtained results through the whole execution.
+            # & (it_counter >= max(current_model.get_lags())):
             next_drift = get_next_switch(it_counter, tool_params)
             next_fcst_horizon = next_drift if it_counter < next_drift else tool_params['periods']
             if it_counter < next_fcst_horizon:
@@ -357,8 +365,11 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         # print(it_counter)
         # print(w[0])
         old_model_forecast = current_model.forecast(list(current_model.input_ts)
-                                                        if aux_current_it_counter < (max(current_model.get_lags()) + 2)
-                                                        else list(ts), armagarch_lib,
+                                                    # Before the time series cover the minimum length of the
+                                                    # time series, the model simulates  over it's input series
+                                                    if aux_current_it_counter >= (max(current_model.get_lags()) + 1)
+                                                    else list(current_model.input_ts),
+                                                    armagarch_lib,
                                                     tool_params['roll_window_size'],
                                                     n_steps)  # *  current_model.multiplier
 
@@ -546,7 +557,7 @@ def compute():
     # 1 Get dict of series and their probabilities calling instantiate_models.
     #   The objects in this dictionary contain series of returns on log scale.
     # 2 Then, pre-train GARCH models by looking at different series
-    models_dict = fit_models(series_dict=instantiate_models(config=input_data_config, show_plt=plt_flag),
+    models_dict = fit_models(series_dict=instantiate_models(input_data_config=input_data_config, show_plt=plt_flag),
                              input_data_conf=input_data_config,
                              params=global_params, armagarch_lib=armagarch_lib, show_plt=plt_flag)
 
@@ -591,8 +602,15 @@ def reconstruct(filename: str):
     # models_dict['fitted_4']  # -> 164.91
     prepare_and_export_2(global_params, out_format, rc=df, ts=df.ret_ts, reconstruction_price=227.52)
 
-
 if __name__ == '__main__':
+
+    # Logger
+    timestamp = calendar.timegm(time.gmtime())
+    log_filename = f"logs/output_{timestamp}.log"
+    os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+    logging.basicConfig(filename=log_filename, filemode='w', level=logging.INFO)
+    file_handler = logging.FileHandler(log_filename, mode="w", encoding=None, delay=False)
+
     compute()
     # reconstruct(filename='timeseries_created_1574036675.csv')
 

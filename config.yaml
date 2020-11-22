@@ -1,5 +1,5 @@
 params:
-  periods: 1100000 # 6000000 # 14410000  # number of rows of the time series to be generated
+  periods: 2100000 # 6000000 # 14410000  # number of rows of the time series to be generated
   switching_probability: 0.05 #0.05
   min_model_len: 1  # A model should be used at least during this number of iterations
   abrupt_drift_prob: 0.25
@@ -68,10 +68,11 @@ input:  # model-related
 # comb 1
 #    - [1, 'aapl\\APPLE_[2018-08-01_to_2018-09-11]_5min.csv', [4, 0, 3, 1, 1], 0.25] # aug 2018 only  # original 2019
 #- 4th 11/11
-#    - [1, 'aapl\\APPLE_[2018-08-01_to_2018-09-11]_5min.csv', [12, 0, 20, 5, 5], 0.25] # aug 2018 only
-#    - [2, 'btc\\BITCOIN_[2019-07-01_to_2019-07-15]_5min.csv', [8, 0, 6, 2, 4], 0.25]  # first half of july 2019 only    # 4, 0, 5, 1, 5
-#    - [3, 'xrp\\RIPPLE_[2019-07-01_to_2019-08-01]_5min.csv', [9, 0, 10, 1, 3], 0.25]  # first half of july 2019 only  # 4, 0, 5, 2, 4
-#    - [4, 'efts\\5min-level\\DOWJONES\\DOWJONES_[2015-08-01_to_2015-08-31]_market_hours.csv', [7, 0, 9, 2, 4], 0.25]  # 2, 0, 5, 2, 1 aug 2015 only
+      # third 22/11/2020
+#    - [1, 'aapl\\APPLE_[2018-08-01_to_2018-09-11]_5min.csv', [12, 0, 20, 5, 5], 0.25, 1] # aug 2018 only
+#    - [2, 'btc\\BITCOIN_[2019-07-01_to_2019-07-15]_5min.csv', [8, 0, 6, 2, 4], 0.25, 1]  # first half of july 2019 only    # 4, 0, 5, 1, 5
+#    - [3, 'xrp\\RIPPLE_[2019-07-01_to_2019-08-01]_5min.csv', [9, 0, 10, 1, 3], 0.25, 1]  # first half of july 2019 only  # 4, 0, 5, 2, 4
+#    - [4, 'efts\\5min-level\\DOWJONES\\DOWJONES_[2015-08-01_to_2015-08-31]_market_hours.csv', [7, 0, 9, 2, 4], 0.25, 1]  # 2, 0, 5, 2, 1 aug 2015 only
 # ############################################################################################################
 
 #   - [1, 'aapl\\APPLE_[2018-08-01_to_2018-09-11]_5min.csv', [-1], 0.25] # aug 2018 only (price going up)
@@ -124,10 +125,11 @@ input:  # model-related
 #   - [3, 'xrp\\RIPPLE_[2019-07-01_to_2019-08-01]_5min.csv', [9, 0, 10, 1, 3], 0.25]  # first half of july 2019 only  # 4, 0, 5, 2, 4
 #   - [4, 'efts\\5min-level\\DOWJONES\\DOWJONES_[2015-08-01_to_2015-08-31]_market_hours.csv', [10,0,5,2,1], 0.25]  # 2, 0, 5, 2, 1 aug 2015 only
   # seventh comb
-#   - [1, 'efts\\5min-level\\GLD\\GLD_[2018-09-01_to_2018-09-15]_market_hours.csv', [9, 0, 1, 1, 1], 0.25]  # Feb 3-18 2020   -> lateral mov maybe: [7, 0, 2, 1, 2]
-#   - [2, 'efts\\5min-level\\XLE\\XLE_[2018-03-16_to_2018-04-01]_market_hours.csv', [15, 0, 17, 4, 4], 0.25]   # May 2018 (full) -> lateral mov
-#   - [3, 'xrp\\RIPPLE_[2019-07-01_to_2019-08-01]_5min.csv', [9, 0, 10, 1, 3], 0.25]  # first half of july 2019 only  # 4, 0, 5, 2, 4
-#   - [4, 'efts\\5min-level\\DOWJONES\\DOWJONES_[2015-08-01_to_2015-08-31]_market_hours.csv', [10,0,5,2,1], 0.25]  # 2, 0, 5, 2, 1 aug 2015 only
+      # fourth 22/11/2020
+#   - [1, 'efts\\5min-level\\GLD\\GLD_[2018-09-01_to_2018-09-15]_market_hours.csv', [9, 0, 1, 1, 1], 0.25, 1]  # Feb 3-18 2020   -> lateral mov maybe: [7, 0, 2, 1, 2]
+#   - [2, 'efts\\5min-level\\XLE\\XLE_[2018-03-16_to_2018-04-01]_market_hours.csv', [15, 0, 17, 4, 4], 0.25, 1]   # May 2018 (full) -> lateral mov
+#   - [3, 'xrp\\RIPPLE_[2019-07-01_to_2019-08-01]_5min.csv', [9, 0, 10, 1, 3], 0.25, 1]  # first half of july 2019 only  # 4, 0, 5, 2, 4
+#   - [4, 'efts\\5min-level\\DOWJONES\\DOWJONES_[2015-08-01_to_2015-08-31]_market_hours.csv', [10,0,5,2,1], 0.25, 1]  # 2, 0, 5, 2, 1 aug 2015 only
   # new params (exploration)
 #   - [1, 'efts\\5min-level\\EMB\\EMB_[2020-03-06_to_2020-03-20]_market_hours.csv', [4, 0, 4, 1, 1], 0.25]  # March 6-20 2020 -> huge drop
 #   - [2, 'efts\\5min-level\\XLE\\XLE_[2018-03-16_to_2018-04-01]_market_hours.csv', [15, 0, 17, 4, 4], 0.25]   # May 2018 (full) -> lateral mov
@@ -163,22 +165,26 @@ input:  # model-related
 #    - [4, 'efts\\5min-level\\GLD\\GLD_[2018-09-01_to_2018-09-15]_market_hours.csv', [9, 0, 1, 1, 1], 0.25]  # Feb 3-18 2020   -> lateral mov maybe: [7, 0, 2, 1, 2]
 # comb 14:
     # 8th 11/11
-#    - [1, 'aapl\\APPLE_[2018-08-01_to_2018-09-11]_5min.csv', [12, 0, 20, 5, 5], 0.25] # aug 2018 only
-#    - [2, 'btc\\BITCOIN_[2019-07-01_to_2019-07-15]_5min.csv', [8, 0, 6, 2, 4], 0.25]  # first half of july 2019 only    # 4, 0, 5, 1, 5
-#    - [3, 'efts\\5min-level\\DOWJONES\\DOWJONES_[2015-08-01_to_2015-08-31]_market_hours.csv', [10,0,5,2,1], 0.25]  # 2, 0, 5, 2, 1 aug 2015 only
-#    - [4, 'efts\\5min-level\\GLD\\GLD_[2018-09-01_to_2018-09-15]_market_hours.csv', [9, 0, 1, 1, 1], 0.25]  # Feb 3-18 2020   -> lateral mov maybe: [7, 0, 2, 1, 2]
+      # 2nd
+#    - [1, 'aapl\\APPLE_[2018-08-01_to_2018-09-11]_5min.csv', [12, 0, 20, 5, 5], 0.25, 1] # aug 2018 only
+#    - [2, 'btc\\BITCOIN_[2019-07-01_to_2019-07-15]_5min.csv', [8, 0, 6, 2, 4], 0.25, 1]  # first half of july 2019 only    # 4, 0, 5, 1, 5
+#    - [3, 'efts\\5min-level\\DOWJONES\\DOWJONES_[2015-08-01_to_2015-08-31]_market_hours.csv', [10,0,5,2,1], 0.25, 1]  # 2, 0, 5, 2, 1 aug 2015 only
+#    - [4, 'efts\\5min-level\\GLD\\GLD_[2018-09-01_to_2018-09-15]_market_hours.csv', [9, 0, 1, 1, 1], 0.25, 1]  # Feb 3-18 2020   -> lateral mov maybe: [7, 0, 2, 1, 2]
 # comb 15:
     # 9th 11/11
+      # 1st 22/11/2020
 #    - [1, 'efts\\5min-level\\EMB\\EMB_[2020-03-06_to_2020-03-20]_market_hours.csv', [4, 0, 4, 1, 1], 0.25]  # March 6-20 2020 -> huge drop
 #    - [2, 'btc\\BITCOIN_[2019-07-01_to_2019-07-15]_5min.csv', [8, 0, 6, 2, 4], 0.25]  # first half of july 2019 only    # 4, 0, 5, 1, 5
 #    - [3, 'efts\\5min-level\\DOWJONES\\DOWJONES_[2015-08-01_to_2015-08-31]_market_hours.csv', [10,0,5,2,1], 0.25]  # 2, 0, 5, 2, 1 aug 2015 only
 #    - [4, 'efts\\5min-level\\GLD\\GLD_[2018-09-01_to_2018-09-15]_market_hours.csv', [9, 0, 1, 1, 1], 0.25]  # Feb 3-18 2020   -> lateral mov maybe: [7, 0, 2, 1, 2]
 # comb 16:
     # 10th 11/11
-#    - [1, 'aapl\\APPLE_[2018-08-01_to_2018-09-11]_5min.csv', [12, 0, 20, 5, 5], 0.25] # aug 2018 only
-#    - [2, 'btc\\BITCOIN_[2019-07-01_to_2019-07-15]_5min.csv', [8, 0, 6, 2, 4], 0.25]  # first half of july 2019 only    # 4, 0, 5, 1, 5
-#    - [3, 'efts\\5min-level\\EMB\\EMB_[2020-03-06_to_2020-03-20]_market_hours.csv', [4, 0, 4, 1, 1], 0.25]  # March 6-20 2020 -> huge drop
-#    - [4, 'efts\\5min-level\\GLD\\GLD_[2018-09-01_to_2018-09-15]_market_hours.csv', [9, 0, 1, 1, 1], 0.25]  # Feb 3-18 2020   -> lateral mov maybe: [7, 0, 2, 1, 2]
+#
+#    - [1, 'aapl\\APPLE_[2018-08-01_to_2018-09-11]_5min.csv', [12, 0, 20, 5, 5], 0.25, 1] # aug 2018 only
+#    - [2, 'btc\\BITCOIN_[2019-07-01_to_2019-07-15]_5min.csv', [8, 0, 6, 2, 4], 0.25, 1]  # first half of july 2019 only    # 4, 0, 5, 1, 5
+#    - [3, 'efts\\5min-level\\EMB\\EMB_[2020-03-06_to_2020-03-20]_market_hours.csv', [4, 0, 4, 1, 1], 0.25, 1]  # March 6-20 2020 -> huge drop
+#    - [4, 'efts\\5min-level\\GLD\\GLD_[2018-09-01_to_2018-09-15]_market_hours.csv', [9, 0, 1, 1, 1], 0.25, 1]  # Feb 3-18 2020   -> lateral mov maybe: [7, 0, 2, 1, 2]
+# comb 17:
 # comb 17:
     # 11th 11/11
 ##    - [1, 'aapl\\APPLE_[2018-08-01_to_2018-09-11]_5min.csv', [12, 0, 20, 5, 5], 0.25] # aug 2018 only
@@ -224,17 +230,24 @@ input:  # model-related
     # serie con timestamp: 1605952970
 #    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [18, 0, 27, 2, 2], 0.25, 1] # descending
 #    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [17, 0, 22, 1, 1], 0.25, 1] # descending
-#    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [12, 0, 26, 1, 1], 0.25, 1] # descending
-#    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [11, 0, 43, 1, 1], 0.25, 1] # descending#    - [2, 'C:\\Users\\suare\\data\\tmp\\selection\\spxl20180524T1550.csv', [30, 0, 18, 2, 2], 0.25, 1] #-2] # STILL TO BE IMPROVED. # lateral -start/end up (goes down at the middle end, but goes up again)
+#    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [11, 0, 43, 1, 1], 0.25, 1] # descending#
+#    - [2, 'C:\\Users\\suare\\data\\tmp\\selection\\spxl20180524T1550.csv', [30, 0, 18, 2, 2], 0.25, 1] #-2] # STILL TO BE IMPROVED. # lateral -start/end up (goes down at the middle end, but goes up again)
 #    - [3, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwo20170607T1613.csv', [43, 0, 23, 2, 5], 0.25, 1] # -1] # lateral (start/end low) # TODO: confirm best value looking at notebook
-#    - [4, 'C:\\Users\\suare\\data\\tmp\\selection\\vv20171101T1523.csv', [40, 0, 1, 5, 4], 0.25, 1]  # -2.5] # ascending
+#    - [4, 'C:\\Users\\suare\\data\\tmp\\selection\\vv20171101T1523.csv', [40, 0, 1, 5, 4], 0.25, 1]  # -2.5] # descending - soft
 # ###################
-#    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [26, 0, 31, 2, 2], 0.25, 1] # descending
-    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [12, 0, 26, 1, 1], 0.25, 1] # descending
+  #    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [26, 0, 31, 2, 2], 0.25, 1] # descending
+  #    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [12, 0, 26, 1, 1], 0.25, 1] # descending
+  # output_price_1606044962
+#    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [11, 0, 43, 1, 1], 0.25, 1] # descending
+#    - [2, 'C:\\Users\\suare\\data\\tmp\\selection\\spxl20180524T1550.csv', [30, 0, 18, 2, 2], 0.25, 1] #-2] # STILL TO BE IMPROVED. # lateral -start/end up (goes down at the middle end, but goes up again)
+#    - [3, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwo20170607T1613.csv', [43, 0, 23, 2, 5], 0.25, 1] # -1] # lateral (start/end low) # TODO: confirm best value looking at notebook
+#    - [4, 'C:\\Users\\suare\\data\\tmp\\selection\\vv20171101T1523.csv', [29, 0, 10, 3, 3], 0.25, 1]  # -2.5] # ascending
+
+    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [11, 0, 43, 1, 1], 0.25, 1] # descending
     - [2, 'C:\\Users\\suare\\data\\tmp\\selection\\spxl20180524T1550.csv', [30, 0, 18, 2, 2], 0.25, 1] #-2] # STILL TO BE IMPROVED. # lateral -start/end up (goes down at the middle end, but goes up again)
     - [3, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwo20170607T1613.csv', [43, 0, 23, 2, 5], 0.25, 1] # -1] # lateral (start/end low) # TODO: confirm best value looking at notebook
     - [4, 'C:\\Users\\suare\\data\\tmp\\selection\\vv20171101T1523.csv', [29, 0, 10, 3, 3], 0.25, 1]  # -2.5] # ascending
-
+#
 
   # end of added on 08/11/2020
 #  cols: ['Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Suspicious']
