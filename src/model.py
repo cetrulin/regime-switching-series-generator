@@ -6,6 +6,7 @@ from functools import partial
 from dataclasses import dataclass
 from sklearn import metrics
 
+
 # RPY packages to run rugarch in python
 import rpy2.robjects as robjects
 from rpy2.robjects import numpy2ri
@@ -127,7 +128,8 @@ class Model:
 
         try:
             # Initialize R GARCH model
-            self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
+            if self.rugarch_lib_instance is None:
+                self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
             spec = self.rugarch_lib_instance.ugarchspec(
                 mean_model=robjects.r(f'list(armaOrder=c({p_},{q_}), include.mean=T)'),
                 # Using student T distribution usually provides better fit
@@ -142,6 +144,7 @@ class Model:
                 out_sample=1  # remember: the 1st forecast should be reproducible in the reconst., as the real value exists
             )
             numpy2ri.deactivate()
+
             # Checks
             self.coef = model.slots['fit'].rx2('coef')  # this gives a vector of coefficients
             self.coef_names = ['mu', 'ar1', 'ar2', 'ar3', 'ar4', 'ma1', 'ma2', 'ma3', 'omega', 'alpha', 'beta', 'skw', 'shape']
@@ -152,7 +155,7 @@ class Model:
             assert alpha + beta < 1  # this ensures that the predicted variance always returns to the long run variance
             self.ARMAGARCHspec = self.get_spec(model)
             self.ARMAGARCHfitted = model  # for ugarchsim
-            self.rugarch_lib_instance = None
+            self.rugarch_lib_instance = None   # to pickle the file for multiprocessing it should not contain this obj.
         except Exception:
             print(f'Model{model} does not fit for the desired params.')
 
@@ -200,7 +203,8 @@ class Model:
 
     def param_search(self, conf, current_series, lib_conf, p):
         best_aic, best_order, best_mdl, best_coef = np.inf, None, None, []
-        self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])\
+        if self.rugarch_lib_instance is None:
+            self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
         # for q, g_p, g_q in itertools.product(range(1, conf['pq_rng'] + 1),
         for q, g_p, g_q in itertools.product(range(1, conf['pq_rng'] + 1, conf['pq_rng_steps']),  # range(10, 31),
                                              range(1, conf['garch_pq_rng'] + 1),
@@ -256,7 +260,7 @@ class Model:
         # self.logging.info(f'////////////\nBEST Model {self.id} p={p} -> aic: {best_aic:6.5f} | order: {best_order}\n////////////')
         self.param_log.append(
             f'{self.id};{p};{best_aic};{best_bic};{best_sic};{best_hic};{best_coef};PATH_MODEL_{self.id}_HERE;1')
-        self.rugarch_lib_instance = None  # commented out on 22/11/2020
+        # self.rugarch_lib_instance = None
         return {'aic': best_aic, 'mdl': best_mdl, 'order': best_order, 'coef': best_coef}, p
 
     def forecast(self, ts: list(), lib_conf, roll: int = 1000, n_steps: int = 1):
@@ -277,7 +281,8 @@ class Model:
             the out.sample argument directly in the forecast function.
         :return forecast or the next time horizon
         """
-        self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])  # TODO: this could be a bottleneck. maybe dont do this each time
+        if self.rugarch_lib_instance is None:
+            self.rugarch_lib_instance = importr(lib_conf['lib'], lib_conf['env'])
         # forecast = self.rugarch_lib_instance.ugarchforecast(fit=self.ARMAGARCHspec,
         #                                                    # Rolling window of latest 1000 values to avoid huge values
         #                                                     #  in forecasts when switching some models.
@@ -287,6 +292,7 @@ class Model:
         # return np.array(forecast.slots['forecast'].rx2('seriesFor')).flatten()  # n_steps
         # print(f'len: {len(ts)}')
         # print(f'len: {len(ts)}  - {np.array(forecast.slots["forecast"].rx2("seriesFor")).flatten()[0]}')
+
         # The main difference between uGARCHforecast and uGARCHsim is that the second one has a random seed.
         # Thus, each simulartion can change.
         # ugarchpath does the same than uGARCHsim but receiving a GARCH spec instead of a fitted objetd.
@@ -294,7 +300,7 @@ class Model:
                                                          prereturns=ts[-roll:] if len(ts) > roll else ts)
         # simulation = self.rugarch_lib_instance.ugarchpath(fit=self.ARMAGARCHspec, n_sim=n_steps, m_sim=1,
         #                                                 prereturns=ts[-roll:] if len(ts) > roll else ts)  # equivalent
-        self.rugarch_lib_instance = None
+
         return np.array(simulation.slots['simulation'].rx2('seriesSim')).flatten()  # n_steps
 
 

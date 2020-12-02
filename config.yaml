@@ -8,8 +8,8 @@ params:
   white_noise_level: 0.05  # weight of white noise (WN) in the generated TS as a %. 0 = no WN. # 100 only produces WN
   w_func: 'sig'  # function to change weights (sig:sigmoid or linear)
   param_search: 'ARMA_GARCH'  # Search of lag values focuses on model: 'ARMA', 'ARMA_GARCH'
-  pq_rng: 50  # ARMA lag order range
-  pq_rng_steps: 3
+  pq_rng: 25  # ARMA lag order range
+  pq_rng_steps: 1
   init_p: 1  # parameter to continue optimization
   d_rng: 1   # [0] # we'll use arma-garch, so not d (= 0) - just for ARIMA
   garch_pq_rng: 5  # GARCH lag order range
