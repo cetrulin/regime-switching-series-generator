@@ -1,5 +1,5 @@
 params:
-  periods: 2100000 # 6000000 # 14410000  # number of rows of the time series to be generated
+  periods: 1100000 # 6000000 # 14410000  # number of rows of the time series to be generated
   switching_probability: 0.05 #0.05
   min_model_len: 1  # A model should be used at least during this number of iterations
   abrupt_drift_prob: 0.25
@@ -11,7 +11,7 @@ params:
   pq_rng: 25  # ARMA lag order range
   pq_rng_steps: 1
   init_p: 1  # parameter to continue optimization
-  d_rng: 1   # [0] # we'll use arma-garch, so not d (= 0) - just for ARIMA
+  d_rng: 5   # [0] # we'll use arma-garch, so not d (= 0) - just for ARIMA
   garch_pq_rng: 5  # GARCH lag order range
   roll_window_size: 1000
   use_transition_map: True  # If True, switches will be pre-defined by the map below
@@ -242,14 +242,39 @@ input:  # model-related
 #    - [2, 'C:\\Users\\suare\\data\\tmp\\selection\\spxl20180524T1550.csv', [30, 0, 18, 2, 2], 0.25, 1] #-2] # STILL TO BE IMPROVED. # lateral -start/end up (goes down at the middle end, but goes up again)
 #    - [3, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwo20170607T1613.csv', [43, 0, 23, 2, 5], 0.25, 1] # -1] # lateral (start/end low) # TODO: confirm best value looking at notebook
 #    - [4, 'C:\\Users\\suare\\data\\tmp\\selection\\vv20171101T1523.csv', [29, 0, 10, 3, 3], 0.25, 1]  # -2.5] # ascending
-
-    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [11, 0, 43, 1, 1], 0.25, 1] # descending
-    - [2, 'C:\\Users\\suare\\data\\tmp\\selection\\spxl20180524T1550.csv', [30, 0, 18, 2, 2], 0.25, 1] #-2] # STILL TO BE IMPROVED. # lateral -start/end up (goes down at the middle end, but goes up again)
-    - [3, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwo20170607T1613.csv', [43, 0, 23, 2, 5], 0.25, 1] # -1] # lateral (start/end low) # TODO: confirm best value looking at notebook
-    - [4, 'C:\\Users\\suare\\data\\tmp\\selection\\vv20171101T1523.csv', [29, 0, 10, 3, 3], 0.25, 1]  # -2.5] # ascending
+# #########################
+# last comb Synthetic set 2
+#    - [1, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\biv20170210T1354.csv', [11, 0, 43, 1, 1], 0.25, 1] # descending
+#    - [2, 'C:\\Users\\suare\\data\\tmp\\selection\\spxl20180524T1550.csv', [30, 0, 18, 2, 2], 0.25, 1] #-2] # STILL TO BE IMPROVED. # lateral -start/end up (goes down at the middle end, but goes up again)
+#    - [3, 'C:\\Users\\suare\\data\\list\\whitelisted\\sets\\iwo20170607T1613.csv', [43, 0, 23, 2, 5], 0.25, 1] # -1] # lateral (start/end low) # TODO: confirm best value looking at notebook
+#    - [4, 'C:\\Users\\suare\\data\\tmp\\selection\\vv20171101T1523.csv', [29, 0, 10, 3, 3], 0.25, 1]  # -2.5] # ascending
 #
+################################
+# Synthetic set 3:
+# combinations - January 2020
+# comb 1
+    - [1, 'C:\\Users\\suare\\data\\tmp3\\selection\\1_equities_spy20200103T1407.csv', [-1], 0.25, 1] # equities: down trend (SPY)
+    - [2, 'C:\\Users\\suare\\data\\tmp3\\selection\\2_fixed_pref_pff20200106T1302.csv', [-1], 0.25, 1] # fixed-income pref: up trend (PFF)
+    - [3, 'C:\\Users\\suare\\data\\tmp3\\selection\\5_real_state_vnq20200106T1215.csv', [-1], 0.25, 1] # real state: lat/down volatile trend (VNQ)
+    - [4, 'C:\\Users\\suare\\data\\tmp3\\selection\\3_inter_bonds_bwx20200106T1531.csv', [-1], 0.25, 1] # Intern. bonds: lat/up flat trend (BWX)
+# comb 2
+    - [1, 'C:\\Users\\suare\\data\\tmp3\\selection\\1_equities_spy20200103T1407.csv', [-1], 0.25, 1] # equities: down trend (SPY)
+    - [2, 'C:\\Users\\suare\\data\\tmp3\\selection\\2_fixed_pref_pff20200106T1302.csv', [-1], 0.25, 1] # fixed-income pref: up trend (PFF)
+    - [3, 'C:\\Users\\suare\\data\\tmp3\\selection\\4_oilgas_ung20200103T840.csv', [-1], 0.25, 1] # oil: lateral volatile trend (UNG)
+    - [4, 'C:\\Users\\suare\\data\\tmp3\\selection\\3_inter_bonds_bwx20200106T1531.csv', [-1], 0.25, 1] # Intern. bonds: lat/up flat trend (BWX)
+# comb 3
+    - [1, 'C:\\Users\\suare\\data\\tmp3\\selection\\1_equities_spy20200103T1407.csv', [-1], 0.25, 1] # equities: down trend (SPY)
+    - [2, 'C:\\Users\\suare\\data\\tmp3\\selection\\2_fixed_pref_pff20200106T1302.csv', [-1], 0.25, 1] # fixed-income pref: up trend (PFF)
+    - [3, 'C:\\Users\\suare\\data\\tmp3\\selection\\4_commodities_djp20200108T1504.csv', [-1], 0.25, 1] # commodities: lat/down volatile trend (DJP)
+    - [4, 'C:\\Users\\suare\\data\\tmp3\\selection\\3_inter_bonds_bwx20200106T1531.csv', [-1], 0.25, 1] # Intern. bonds: lat/up flat trend (BWX)
 
-  # end of added on 08/11/2020
+# combinations - June 2020
+# comb 1
+# comb 2
+# comb 3
+# comb 4
+#
+# end of added on 08/11/2020
 #  cols: ['Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'Suspicious']
   sim_col: 'close'
   index_col: 'datetime' # 'Time'

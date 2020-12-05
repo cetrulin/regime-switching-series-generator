@@ -168,12 +168,15 @@ def fit_model(show_plt: bool, tool_params: dict(), armagarch_lib: dict(), series
         # current_model.set_spec_from_model(best_model)  # this crashes for some reason
         current_model.fit(current_model.input_ts, armagarch_lib,
                           current_model.p, current_model.q, current_model.g_p, current_model.g_q)  # not needed
+        logging.info(f'BEST CONFIG MODEL {current_model.id}:')
         logging.info('model {} -> aic: {:6.5f} | order: {}'.format(current_model.id, best_aic, best_order))
-        print('log is:')
-        if len(current_model.param_log) > 0:
-            # TODO: see how to fix param_log.csv. it gets here empty
-            pd.DataFrame({'id;p;aic;bic;sic;hic;coefficients;PATH_MODEL;is_best':
-                          current_model.log}).to_csv(f"logs/po_{timestamp}_mdl-{current_model.id}.csv")
+        # print('log is:')
+        print(f'BEST CONFIG MODEL {current_model.id}:')
+        print('model {} -> aic: {:6.5f} | order: {}'.format(current_model.id, best_aic, best_order))
+        # if len(current_model.param_log) > 0:
+        #     # TODO: see how to fix param_log.csv. it gets here empty
+        #     pd.DataFrame({'id;p;aic;bic;sic;hic;coefficients;PATH_MODEL;is_best':
+        #                   current_model.log}).to_csv(f"logs/po_{timestamp}_mdl-{current_model.id}.csv")
     else:
         logging.critical('param_search must be provided in config.yaml. Values should be "ARMA" or "ARMA_GARCH"\n\n')
 
@@ -335,7 +338,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
     logging.info('Start of the context-switching generative process:')
     it_counter = aux_current_it_counter = 0
     while it_counter < tool_params['periods']:
-        print(it_counter)
+        # print(it_counter)
         # print(f'IT COUNTER IS: {it_counter} periods: {tool_params["periods"]}')
         # 1 Start forecasting in 1 step horizons using the current model
         n_steps = 1
@@ -376,7 +379,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         # 2 In case of switch, select a new model and reset weights: (1.0, 0.0) at the start (no changes) by default.
         if new_switch_type.value >= 0:
             # logging.info(f'There is a {new_switch_type.name} switch.')
-            print(f'There is a {new_switch_type.name} switch.')
+            # print(f'There is a {new_switch_type.name} switch.')
             switch_type, switch_shp = new_switch_type, new_switch_shp
             # print(f'switch sharpness: {switch_shp}')
             # 'switch_to' is only used if transition_maps are enabled.
@@ -453,7 +456,7 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
         it_counter = it_counter + 1
         aux_current_it_counter = it_counter
         logging.info(f'Period {it_counter}:{ts[-1]}')
-        print(f'Period {it_counter}: {ts[-1]}')
+        # print(f'Period {it_counter}: {ts[-1]}')
 
     # 4 Plot simulations
     if show_plt:
@@ -602,15 +605,20 @@ def reconstruct(filename: str):
     # models_dict['fitted_4']  # -> 164.91
     prepare_and_export_2(global_params, out_format, rc=df, ts=df.ret_ts, reconstruction_price=227.52)
 
+
 if __name__ == '__main__':
+    # for it in range(500):
+        try:
+            # Logger
+            timestamp = calendar.timegm(time.gmtime())
+            log_filename = f"logs/output_{timestamp}.log"
+            os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+            logging.basicConfig(filename=log_filename, filemode='w', level=logging.INFO)
+            file_handler = logging.FileHandler(log_filename, mode="w", encoding=None, delay=False)
 
-    # Logger
-    timestamp = calendar.timegm(time.gmtime())
-    log_filename = f"logs/output_{timestamp}.log"
-    os.makedirs(os.path.dirname(log_filename), exist_ok=True)
-    logging.basicConfig(filename=log_filename, filemode='w', level=logging.INFO)
-    file_handler = logging.FileHandler(log_filename, mode="w", encoding=None, delay=False)
-
-    compute()
-    # reconstruct(filename='timeseries_created_1574036675.csv')
+            compute()
+            print(f'Iteration - {it} - for output_{timestamp}.log - finished')
+            # reconstruct(filename='timeseries_created_1574036675.csv')
+        except:
+            print(f'Iteration - {it} - for output_{timestamp}.log - crashed')
 

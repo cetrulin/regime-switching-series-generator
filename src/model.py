@@ -155,7 +155,6 @@ class Model:
             assert alpha + beta < 1  # this ensures that the predicted variance always returns to the long run variance
             self.ARMAGARCHspec = self.get_spec(model)
             self.ARMAGARCHfitted = model  # for ugarchsim
-            self.rugarch_lib_instance = None   # to pickle the file for multiprocessing it should not contain this obj.
         except Exception:
             print(f'Model{model} does not fit for the desired params.')
 
@@ -260,7 +259,7 @@ class Model:
         # self.logging.info(f'////////////\nBEST Model {self.id} p={p} -> aic: {best_aic:6.5f} | order: {best_order}\n////////////')
         self.param_log.append(
             f'{self.id};{p};{best_aic};{best_bic};{best_sic};{best_hic};{best_coef};PATH_MODEL_{self.id}_HERE;1')
-        # self.rugarch_lib_instance = None
+        self.rugarch_lib_instance = None
         return {'aic': best_aic, 'mdl': best_mdl, 'order': best_order, 'coef': best_coef}, p
 
     def forecast(self, ts: list(), lib_conf, roll: int = 1000, n_steps: int = 1):
