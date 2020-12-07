@@ -78,12 +78,6 @@ def instantiate_model(config, show_plt, file_config):
                 multiplier=multiplier,
                 ARMAGARCH_preconf=preconf)
     # mdl.set_log(logging)
-    logging.info(f"==========\nLogging ARMAGARCH orders used to fit mdl #{counter} - {file.split(os.sep)[-1]}")
-    logging.info(mdl.get_orders())
-    logging.info(f"----------\n{counter} - {file.split(os.sep)[-1]}")
-    logging.info(mdl.coef_names)
-    logging.info(mdl.coef)
-    logging.info("==========")
     return mdl,  f'{MODEL_DICT_NAMES}{counter}'
 
 
@@ -141,6 +135,8 @@ def fit_model(show_plt: bool, tool_params: dict(), armagarch_lib: dict(), series
     :return: fitted model and description to be added to dictionary
     """
     name_series, current_model = series_model
+    print(f'fitting model for {name_series} {current_model.id}: {current_model.raw_input_path}')
+
     # logging.info(f'\n\n 1. Setting ARMAGARCH library for model {current_model.id}')
     if tool_params['param_search'] == 'ARMA':
         _, ARMA_order, ARMA_model = get_best_arma_parameters(ts=list(current_model.input_ts), config=tool_params)  #
@@ -168,9 +164,10 @@ def fit_model(show_plt: bool, tool_params: dict(), armagarch_lib: dict(), series
         # current_model.set_spec_from_model(best_model)  # this crashes for some reason
         current_model.fit(current_model.input_ts, armagarch_lib,
                           current_model.p, current_model.q, current_model.g_p, current_model.g_q)  # not needed
-        logging.info(f'BEST CONFIG MODEL {current_model.id}:')
+        logging.info(f'BEST CONFIG MODEL {current_model.id} {current_model.raw_input_path}:')
         logging.info('model {} -> aic: {:6.5f} | order: {}'.format(current_model.id, best_aic, best_order))
-        # print('log is:')
+        current_model.rugarch_lib_instance = None    #  So it can be pickled
+         # print('log is:')
         print(f'BEST CONFIG MODEL {current_model.id}:')
         print('model {} -> aic: {:6.5f} | order: {}'.format(current_model.id, best_aic, best_order))
         # if len(current_model.param_log) > 0:
@@ -179,7 +176,11 @@ def fit_model(show_plt: bool, tool_params: dict(), armagarch_lib: dict(), series
         #                   current_model.log}).to_csv(f"logs/po_{timestamp}_mdl-{current_model.id}.csv")
     else:
         logging.critical('param_search must be provided in config.yaml. Values should be "ARMA" or "ARMA_GARCH"\n\n')
-
+    logging.info(f"==========\nLogging ARMAGARCH orders used to fit mdl #{name_series} {current_model.id}: {current_model.raw_input_path}")
+    logging.info(current_model.get_orders())
+    logging.info(current_model.coef_names)
+    logging.info(current_model.coef)
+    logging.info("==========")
     return current_model, name_series  # name_series = f'{MODEL_DICT_NAMES}{counter}'
 
 
@@ -564,27 +565,39 @@ def compute():
                              input_data_conf=input_data_config,
                              params=global_params, armagarch_lib=armagarch_lib, show_plt=plt_flag)
 
-    # 3 Once the models are pre-train, these are used for simulating the final series.
-    # At every switch, the model that generates the final time series will be different.
-    ts, rc = switching_process(tool_params=global_params, models=models_dict,
-                               data_config=input_data_config, armagarch_lib=armagarch_lib, show_plt=plt_flag)
+    # Generate n sets with the models trained
+    for it in range(global_params['simulations']):
+        try:
+            # Logger
+            set_globals()
+            print(f'Iteration - {it} - for output_{timestamp}.log - finished')
 
-    # 4 Plot simulations
-    if plt_flag:
-        gutils.plot_results(ts)
+            # 3 Once the models are pre-train, these are used for simulating the final series.
+            # At every switch, the model that generates the final time series will be different.
+            ts, rc = switching_process(tool_params=global_params, models=models_dict,
+                                       data_config=input_data_config, armagarch_lib=armagarch_lib, show_plt=plt_flag)
 
-    # 5 Add noise (gaussian noise and SNR) pre-reconstruction, reconstruct prices and add noise post-reconstruction
-    # 6 and export
-    rc.index = rc['n_row'].astype(int)
-    rc = rc.reindex(range(global_params['periods'])).ffill()
-    rc['n_row'] = np.arange(len(rc))
-    # pc = rc.copy()
-    # pc['ret_ts'] = ts
-    # pc.to_csv(os.sep.join([output_format['path'], output_format['ts_name'] + str(int(time.time())) + '.csv']),
-    #           index=False)
-    # 6 Final simulation (TS created) and a log of the regime changes (RC) to CSV files
-    prepare_and_export(global_params, output_format, rc, ts,
-                       reconstruction_price=models_dict['fitted_1'].rec_price)
+            # 4 Plot simulations
+            if plt_flag:
+                gutils.plot_results(ts)
+
+            # 5 Add noise (gaussian noise and SNR) pre-reconstruction, reconstruct prices and add noise post-reconstruction
+            # 6 and export
+            rc.index = rc['n_row'].astype(int)
+            rc = rc.reindex(range(global_params['periods'])).ffill()
+            rc['n_row'] = np.arange(len(rc))
+            # pc = rc.copy()
+            # pc['ret_ts'] = ts
+            # pc.to_csv(os.sep.join([output_format['path'], output_format['ts_name'] + str(int(time.time())) + '.csv']),
+            #           index=False)
+            # 6 Final simulation (TS created) and a log of the regime changes (RC) to CSV files
+            prepare_and_export(global_params, output_format, rc, ts,
+                               reconstruction_price=models_dict['fitted_1'].rec_price)
+            print(f'Iteration - {it} - for output_{timestamp}.log - finished')
+
+        except:
+            print(f'Iteration - {it} - for output_{timestamp}.log - crashed')
+
 
 
 def reconstruct(filename: str):
@@ -606,19 +619,31 @@ def reconstruct(filename: str):
     prepare_and_export_2(global_params, out_format, rc=df, ts=df.ret_ts, reconstruction_price=227.52)
 
 
+def set_globals():
+    global timestamp, log_filename, logging, file_handler
+    timestamp = calendar.timegm(time.gmtime())
+    log_filename = f"logs/output_{timestamp}.log"
+    os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+    logging.basicConfig(filename=log_filename, filemode='w', level=logging.INFO)
+    file_handler = logging.FileHandler(log_filename, mode="w", encoding=None, delay=False)
+
+
+
 if __name__ == '__main__':
-    # for it in range(500):
-        try:
-            # Logger
-            timestamp = calendar.timegm(time.gmtime())
-            log_filename = f"logs/output_{timestamp}.log"
-            os.makedirs(os.path.dirname(log_filename), exist_ok=True)
-            logging.basicConfig(filename=log_filename, filemode='w', level=logging.INFO)
-            file_handler = logging.FileHandler(log_filename, mode="w", encoding=None, delay=False)
-
-            compute()
-            print(f'Iteration - {it} - for output_{timestamp}.log - finished')
-            # reconstruct(filename='timeseries_created_1574036675.csv')
-        except:
-            print(f'Iteration - {it} - for output_{timestamp}.log - crashed')
-
+    compute()
+    # it = 0
+    # for it in range(2000):
+    #     try:
+    #         # Logger
+    #         timestamp = calendar.timegm(time.gmtime())
+    #         log_filename = f"logs/output_{timestamp}.log"
+    #         os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+    #         logging.basicConfig(filename=log_filename, filemode='w', level=logging.INFO)
+    #         file_handler = logging.FileHandler(log_filename, mode="w", encoding=None, delay=False)
+    #
+    #         compute()
+    #         print(f'Iteration - {it} - for output_{timestamp}.log - finished')
+    #         # reconstruct(filename='timeseries_created_1574036675.csv')
+    #     except:
+    #         print(f'Iteration - {it} - for output_{timestamp}.log - crashed')
+    #

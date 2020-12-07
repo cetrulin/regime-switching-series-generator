@@ -175,6 +175,7 @@ class Model:
                                                          p_=p, q_=q, garch_param1=p_g, garch_param2=q_g), self.coef
         else:
             # Fitting in parallel according to the ARMA value 'p'.
+            # pool = multiprocessing.Pool(processes=4)
             pool = multiprocessing.Pool(processes=conf['pq_rng'])
             # TODO: we may want to change the multiprocessing library so calls to it are more understandable/
             #  can we return objects easily there though?
