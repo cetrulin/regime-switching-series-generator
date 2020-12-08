@@ -267,11 +267,15 @@ input:  # model-related
 # MANUAL SELECTION BASED ON AIC/BIC
     - [1, 'C:\\Users\\suare\\data\\tmp3\\selection\\1_equities_spy20200103T1407.csv', [3, 0, 25, 4, 4], 0.25, 1] # equities: down trend (SPY)
 #    - [2, 'C:\\Users\\suare\\data\\tmp3\\selection\\2_fixed_pref_pff20200106T1302.csv', [12, 0, 1, 1, 5], 0.25, 1] # fixed-income pref: up trend (PFF)
-    - [2, 'C:\\Users\\suare\\data\\tmp3\\selection\\2_fixed_pref_pff20200106T1302.csv', [3, 0, 1, 1, 5], 0.25, 1] # fixed-income pref: up trend (PFF)
-    - [3, 'C:\\Users\\suare\\data\\tmp3\\selection\\5_real_state_vnq20200106T1215.csv', [11, 0, 25, 1, 2], 0.25, 1] # real state: lat/down volatile trend (VNQ)
+#    - [2, 'C:\\Users\\suare\\data\\tmp3\\selection\\2_fixed_pref_pff20200106T1302.csv', [3, 0, 1, 1, 5], 0.25, 1] # fixed-income pref: up trend (PFF) (too flat..)
+    - [2, 'C:\\Users\\suare\\data\\tmp3\\selection\\2_fixed_pref_pff20200106T1302.csv', [12, 0, 1, 1, 5], 0.25, 1] # fixed-income pref: up trend (PFF)
+#    - [3, 'C:\\Users\\suare\\data\\tmp3\\selection\\5_real_state_vnq20200106T1215.csv', [11, 0, 25, 1, 2], 0.25, 1] # real state: lat/down volatile trend (VNQ)  # (result volatile but up trend?)
+    - [3, 'C:\\Users\\suare\\data\\tmp3\\selection\\5_real_state_vnq20200106T1215.csv', [9, 0, 5, 1, 4], 0.25, 1] # real state: lat/down volatile trend (VNQ)
 #    - [4, 'C:\\Users\\suare\\data\\tmp3\\selection\\3_inter_bonds_bwx20200106T1531.csv', [3, 0, 1, 1, 1], 0.25, 1] # Intern. bonds: lat/up flat trend (BWX)
-#    - [4, 'C:\\Users\\suare\\data\\tmp3\\selection\\3_inter_bonds_bwx20200106T1531.csv', [21, 0, 2, 1, 1], 0.25, 1] # Intern. bonds: lat/up flat trend (BWX)
-    - [4, 'C:\\Users\\suare\\data\\tmp3\\selection\\3_inter_bonds_bwx20200106T1531.csv', [4, 0, 17, 1, 1], 0.25, 1] # Intern. bonds: lat/up flat trend (BWX)
+#    - [4, 'C:\\Users\\suare\\data\\tmp3\\selection\\3_inter_bonds_bwx20200106T1531.csv', [18, 0, 6, 1, 1], 0.25, 1] # Intern. bonds: lat/up flat trend (BWX)
+    - [4, 'C:\\Users\\suare\\data\\tmp3\\selection\\3_inter_bonds_bwx20200106T1531.csv', [21, 0, 2, 1, 1], 0.25, 1] # Intern. bonds: lat/up flat trend (BWX)
+  # next to try?
+#    - [4, 'C:\\Users\\suare\\data\\tmp3\\selection\\3_inter_bonds_bwx20200106T1531.csv', [24, 0, 16, 3, 3], 0.25, 1] # Intern. bonds: lat/up flat trend (BWX)
 # LOWEST AIC
 #    - [1, 'C:\\Users\\suare\\data\\tmp3\\selection\\1_equities_spy20200103T1407.csv', [1, 0, 1, 3, 3], 0.25, 1] # equities: down trend (SPY)
 #    - [2, 'C:\\Users\\suare\\data\\tmp3\\selection\\2_fixed_pref_pff20200106T1302.csv', [1, 0, 1, 5, 1], 0.25, 1] # fixed-income pref: up trend (PFF)

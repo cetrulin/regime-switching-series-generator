@@ -64,6 +64,7 @@ def plot_results(simulations: pd.Series()):
     plt.hist(simulations.values[-1, :, -1], bins=50)
     plt.title('Distribution of prices')
     plt.show()
+    plt.close()
 
 
 def prepare_raw_series(mode: str, ts: pd.DataFrame()):

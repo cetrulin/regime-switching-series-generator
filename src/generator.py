@@ -55,7 +55,8 @@ def instantiate_model(config, show_plt, file_config):
     # df.columns = config['cols']
     try:
         df.set_index(keys=config['index_col'], drop=True, inplace=True)
-    except:
+    except Exception as e:
+        print(e)
         print(df.head())
         df.set_index(keys=config['index_col'], drop=True, inplace=True)
     # 2. Clean nulls and select series
@@ -436,9 +437,11 @@ def switching_process(tool_params: dict(), models: dict(), data_config: dict(), 
                 plt.savefig(f"logs/output_ret_{timestamp}.png")
                 rec_tsa = gutils.reconstruct(tsa, init_val=140)
                 rec_tsa.plot()
+                plt.close()
                 # plt.show()
                 plt.savefig(f"logs/output_price_{timestamp}.png")
-                # tsa.to_csv(f"logs/output_{timestamp}.csv")
+                plt.close()
+                # tsa.(f"logs/output_{timestamp}.csv")
                 # print('End of stich')
                 # ####################
 
@@ -595,8 +598,10 @@ def compute():
                                reconstruction_price=models_dict['fitted_1'].rec_price)
             print(f'[SUCCESS] Iteration - {it} - for output_{timestamp}.log')
 
-        except:
+        except Exception as e:
             print(f'[CRASHED] - Iteration - {it} - for output_{timestamp}.log')
+            print(e)
+
         set_globals()  # create new logs
 
 
