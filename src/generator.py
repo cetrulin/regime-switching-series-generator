@@ -566,12 +566,12 @@ def compute():
                              params=global_params, armagarch_lib=armagarch_lib, show_plt=plt_flag)
 
     # Generate n sets with the models trained
+    initial_log = log_filename
     for it in range(global_params['simulations']):
         try:
             # Logger
-            set_globals()
-            print(f'Iteration - {it} - for output_{timestamp}.log - finished')
-
+            print(f'[START] - Iteration - {it} - for output_{timestamp}.log')
+            logging.info(f'Iteration {it} - Fitting and config in initial log: {initial_log}')
             # 3 Once the models are pre-train, these are used for simulating the final series.
             # At every switch, the model that generates the final time series will be different.
             ts, rc = switching_process(tool_params=global_params, models=models_dict,
@@ -593,11 +593,11 @@ def compute():
             # 6 Final simulation (TS created) and a log of the regime changes (RC) to CSV files
             prepare_and_export(global_params, output_format, rc, ts,
                                reconstruction_price=models_dict['fitted_1'].rec_price)
-            print(f'Iteration - {it} - for output_{timestamp}.log - finished')
+            print(f'[SUCCESS] Iteration - {it} - for output_{timestamp}.log')
 
         except:
-            print(f'Iteration - {it} - for output_{timestamp}.log - crashed')
-
+            print(f'[CRASHED] - Iteration - {it} - for output_{timestamp}.log')
+        set_globals()  # create new logs
 
 
 def reconstruct(filename: str):
@@ -620,17 +620,29 @@ def reconstruct(filename: str):
 
 
 def set_globals():
-    global timestamp, log_filename, logging, file_handler
+    global timestamp, log_filename, file_handler
     timestamp = calendar.timegm(time.gmtime())
     log_filename = f"logs/output_{timestamp}.log"
     os.makedirs(os.path.dirname(log_filename), exist_ok=True)
     logging.basicConfig(filename=log_filename, filemode='w', level=logging.INFO)
     file_handler = logging.FileHandler(log_filename, mode="w", encoding=None, delay=False)
 
+    # Remove current handler and replace
+    log = logging.getLogger()  # root logger
+    for hdlr in log.handlers[:]:  # remove all old handlers
+        log.removeHandler(hdlr)
+    log.addHandler(file_handler)      # set the new handler
 
 
 if __name__ == '__main__':
+    timestamp = calendar.timegm(time.gmtime())
+    log_filename = f"logs/output_{timestamp}.log"
+    os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+    logging.basicConfig(filename=log_filename, filemode='w', level=logging.INFO)
+    file_handler = logging.FileHandler(log_filename, mode="w", encoding=None, delay=False)
+
     compute()
+
     # it = 0
     # for it in range(2000):
     #     try:
