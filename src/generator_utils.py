@@ -84,6 +84,12 @@ def prepare_raw_series(mode: str, ts: pd.DataFrame()):
     # Returning series of ret
     return ts[ts.columns[0]].apply(lambda x: 0 if math.isnan(x) else x)  # the first value = NaN due to the returns
 
+def test():
+    # import arff
+    # arff.dump()
+    import scipy
+    from scipy.io import arff
+    scipy.ar
 
 def sigmoid(x):
     """
